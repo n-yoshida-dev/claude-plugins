@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: マニフェストとスクリプトの検証
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: JSON が妥当か
+        run: |
+          for f in $(git ls-files '*.json'); do
+            jq empty "$f" || { echo "::error file=$f::JSON が壊れています"; exit 1; }
+          done
+
+      - name: シェルスクリプトの構文と shellcheck
+        run: |
+          for f in $(git ls-files '*.sh'); do
+            bash -n "$f" || exit 1
+            shellcheck "$f" || exit 1
+          done
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Claude Code のプラグイン検証（--strict）
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate . --strict
+          for p in plugins/*/; do
+            claude plugin validate "$p" --strict
+          done

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "n-yoshida-dev",
+  "description": "n-yoshida-dev の自作アプリ（~/workspace/apps）で使い回す Claude Code プラグイン集",
+  "owner": {
+    "name": "n-yoshida-dev"
+  },
+  "plugins": [
+    {
+      "name": "apps-workflow",
+      "source": "./plugins/apps-workflow",
+      "description": "HANDOFF / TODO / KNOWLEDGE の4ファイル体系と frontend/ backend/ 構成を前提にした開発ワークフロー（フック3種・/handoff・/pr-check）",
+      "category": "productivity"
+    }
+  ]
+}

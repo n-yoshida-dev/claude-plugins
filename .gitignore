@@ -1,0 +1,8 @@
+# Claude Code：個人環境ぶんだけ除外する
+.claude/settings.local.json
+CLAUDE.local.md
+
+# エディタ・OS
+.DS_Store
+.vscode/
+.idea/
