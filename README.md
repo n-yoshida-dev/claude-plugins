@@ -33,12 +33,18 @@ Claude Code プラグインのマーケットプレイス。
 }
 ```
 
-**マシンごとに初回だけ**、プラグイン本体を取得する必要がある（外部ソースのプラグインは自動では落ちてこない）。
+**マシン（WSL ディストリ）ごとに初回だけ**、プラグイン本体を取得する必要がある
+（外部ソースのプラグインは自動では落ちてこない）。**Claude Code のセッション内**で実行する。
 
-```bash
-claude plugin marketplace add n-yoshida-dev/claude-plugins
-claude plugin install apps-workflow@n-yoshida-dev
 ```
+/plugin marketplace add n-yoshida-dev/claude-plugins
+/plugin install apps-workflow@n-yoshida-dev
+```
+
+引数なしで `/plugin` を打つと対話メニューが開くので、そこから追加・導入してもよい。
+
+**シェルの `claude plugin install` に頼らないこと。** VSCode 拡張などは自前の実行環境を持っていて
+`claude` コマンドが PATH に入らず、`command not found` になる。導入も更新もセッション内から行う。
 
 プラグインを更新したら、利用側は `/plugin marketplace update n-yoshida-dev` →
 `/plugin update apps-workflow@n-yoshida-dev` で取り込む（`version` を上げた変更だけが配られる）。
