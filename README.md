@@ -43,8 +43,18 @@ Claude Code プラグインのマーケットプレイス。
 
 引数なしで `/plugin` を打つと対話メニューが開くので、そこから追加・導入してもよい。
 
-**シェルの `claude plugin install` に頼らないこと。** VSCode 拡張などは自前の実行環境を持っていて
-`claude` コマンドが PATH に入らず、`command not found` になる。導入も更新もセッション内から行う。
+**シェルの `claude` コマンドは PATH に無い前提で書くこと。** VSCode 拡張などは自前の実行環境を持っていて
+`claude plugin install` は `command not found` になる。セッション内の `/plugin` から行うか、
+拡張同梱のバイナリをフルパスで叩く（Claude 自身に代行させるときはこちら）。
+
+```bash
+CLI=$(ls -d ~/.vscode-server/extensions/anthropic.claude-code-*/resources/native-binary/claude | sort -V | tail -1)
+"$CLI" plugin install apps-workflow@n-yoshida-dev --scope project   # 利用側アプリのディレクトリで実行
+```
+
+**`enabledPlugins` に書くだけでは読み込まれない。** 利用側アプリごとに project スコープで install して
+`~/.claude/plugins/installed_plugins.json` に記録を作る必要がある（`claude plugin list` の「enabled」表示は
+この記録を見ていないので当てにならない。2026-08-30 の棚卸しで 3 アプリが記録なしのまま 8 日間フックなしで動いていた）。
 
 プラグインを更新したら、利用側は `/plugin marketplace update n-yoshida-dev` →
 `/plugin update apps-workflow@n-yoshida-dev` で取り込む（`version` を上げた変更だけが配られる）。
