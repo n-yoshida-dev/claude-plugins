@@ -15,7 +15,7 @@ model: inherit
 
 Bash は次の読み取りにだけ使います。
 
-- `git status --short` ／ `git diff <BASE>...HEAD` ／ `git diff <BASE>...HEAD --stat` ／ `git log <BASE>..HEAD --oneline` ／ `git show`
+- `git status --short` ／ `git diff <BASE>...<HEAD>` ／ `git diff <BASE>...<HEAD> --stat` ／ `git log <BASE>..<HEAD> --oneline` ／ `git show`
 - `gh pr view <番号> --json title,body`（PR 本文の「完了条件」「確認した証拠」を読む）
 - そのほか読むだけのコマンド（`ls` `find` `wc` `cat` `head`）。ただしファイルの探索と読み込みは Glob / Grep / Read を優先する
 
@@ -27,14 +27,16 @@ Bash は次の読み取りにだけ使います。
 
 呼び出し側から次を受け取ります。渡されなかったものは自分で拾います。
 
-- BASE：比較元のブランチ（既定 `main`）
+- BASE：比較元（既定 `main`）
+- HEAD：比較先（既定は今の HEAD）。マージ済みの PR を後から検品するときは、その squash コミットを渡す
 - 完了条件：対象タスクの「完了条件：」の行、または PR 番号。
-  無ければ `git diff <BASE>...HEAD -- TODO.md` で `[x]` に変わった行と、その直下の「完了条件：」を拾う。
+  無ければ `git diff <BASE>...<HEAD> -- TODO.md` で `[x]` に変わった行と、その直下の「完了条件：」を拾う。
   PR 番号があれば `gh pr view` で本文の「完了条件」「確認した証拠」も読む
 
 ## 手順
 
-1. `git diff <BASE>...HEAD --stat` で変更範囲を把握し、変更されたファイルを読む。変更されていない箇所は、判定に必要な範囲だけ読む
+1. `git diff <BASE>...<HEAD> --stat` で変更範囲を把握し、変更されたファイルを読む。変更されていない箇所は、判定に必要な範囲だけ読む。
+   作業ツリーに未コミットの変更があれば、判定は HEAD 時点の内容で行う（`git show <HEAD>:<path>`）。作業中の変更を検品対象に混ぜない
 2. 判定基準を読む。**どれも正本**
    - 完了条件（上記の入力）
    - `SPEC.md`（確定仕様の正本）。差分が触れる節だけでよい
@@ -100,6 +102,7 @@ Bash は次の読み取りにだけ使います。
 
 ## 制約
 
+- **gitignore 対象のファイル（`PRIVATE.md` / `*.local.*` / `.env`）は読まない。** 個人の実データが入っている。判定はコミット対象のファイルだけで行う
 - **指摘が無ければ「指摘なし」と書く。指摘を作り出さない**
 - 根拠に `ファイルパス:行番号` を必ず付ける。読んでいないファイルについて推測で書かない
 - 「たぶん動く」を「満たす」と書かない。コードから確認できなければ「確認できない」にする
