@@ -16,6 +16,8 @@
   エラーを出さない
 - **利用側に配る変更は `plugin.json` の `version` を上げる。** 上げないと利用側に届かない
 - 変更したら `claude plugin validate . --strict` と `claude plugin validate plugins/<name> --strict` を通す
+- シェルスクリプトを変えたら `bash -n` と shellcheck も通す。shellcheck はこのマシンに入っていないが、
+  `npx --yes shellcheck <ファイル>` で CI と同じ検査ができる（初回だけバイナリを取得する。2026-09-04 に確認）
 - スキル名はプラグイン名で名前空間化される（`/apps-workflow:handoff`）。スキルを改名したら、
   利用側の CLAUDE.md の記述も直す必要があることを報告に含める
 - コメント・ドキュメントは日本語で書く
