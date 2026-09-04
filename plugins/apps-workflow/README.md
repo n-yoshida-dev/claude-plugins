@@ -13,6 +13,22 @@ HANDOFF / PLAN / SPEC / TODO / KNOWLEDGE / `logs/decisions.md` のドキュメ�
 | フック（SessionStart） | `hooks/session-briefing.sh` | `TODO.md` の `- [ ]` 行を先頭12件まで context に流し込む。`logs/decisions.md` があればその案内も出す |
 | スキル | `/apps-workflow:handoff` | セッションの区切りに HANDOFF（現在地のみ）/ TODO / KNOWLEDGE / `logs/decisions.md` を更新する |
 | スキル | `/apps-workflow:pr-check` | CI と同じ検査（`scripts/check-*.sh` → 秘密情報 → frontend → backend）をローカルでまとめて回す |
+| エージェント | `apps-workflow:acceptance-reviewer` | マージ前に差分を TODO.md の「完了条件：」・SPEC.md・CLAUDE.md「守ること」に照らして検品する読み取り専用の評価役。判定（マージ可／直してから／ユーザー判断が要る）を返すだけで、直すのは呼び出し側 |
+
+## 受け入れレビューの呼び方（マージ前）
+
+CI は整形・型・テスト・ビルドしか見ないので、「動くが意図と違う」「未完成なのに完了扱い」は止められない。
+それを止めるのが `acceptance-reviewer`。PR を作って CI を待つ間に、メインの Claude が Agent ツールで呼ぶ。
+
+```
+subagent_type: apps-workflow:acceptance-reviewer
+prompt: BASE=main、PR #12 の差分を検品してください。対象タスクは TODO.md「年収の入力欄を変えると総資産グラフが再計算される」です。
+```
+
+- 読み取り専用。`tools` に Edit / Write が無く、Bash は `git diff` / `git log` / `gh pr view` などの読み取りに限る
+  （定義ファイルの指示による制約。Bash 自体を機械的に読み取り専用にする仕組みは Claude Code に無い）
+- 一般的なバグ探し・命名・性能は見ない。それは `/code-review` と `/simplify` の担当
+- 判定が「直してから」なら直して push、「ユーザー判断が要る」なら報告して止まる。手順は apps ルート CLAUDE.md「PR からマージまでの流れ」
 
 ## 前提
 

@@ -14,7 +14,7 @@ Claude Code プラグインのマーケットプレイス。
 
 | 名前 | 内容 |
 |---|---|
-| [apps-workflow](plugins/apps-workflow/) | フック3種（秘密情報のコミット阻止・編集直後の typecheck/lint/vet・起動時の TODO 提示）＋ `/handoff` ＋ `/pr-check` |
+| [apps-workflow](plugins/apps-workflow/) | フック3種（秘密情報のコミット阻止・編集直後の typecheck/lint/vet・起動時の TODO 提示）＋ `/handoff` ＋ `/pr-check` ＋ `acceptance-reviewer` エージェント（マージ前の受け入れレビュー） |
 
 ## 使い方（アプリ側）
 
