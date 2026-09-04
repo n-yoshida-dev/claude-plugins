@@ -9,7 +9,7 @@
     {
       "name": "apps-workflow",
       "source": "./plugins/apps-workflow",
-      "description": "HANDOFF / TODO / KNOWLEDGE の4ファイル体系と frontend/ backend/ 構成を前提にした開発ワークフロー（フック3種・/handoff・/pr-check）",
+      "description": "HANDOFF / TODO / KNOWLEDGE の4ファイル体系と frontend/ backend/ 構成を前提にした開発ワークフロー（フック3種・/handoff・/pr-check・acceptance-reviewer エージェント）",
       "category": "productivity"
     }
   ]
