@@ -20,5 +20,7 @@ echo
 echo "未完タスク ${TOTAL} 件。先頭12件："
 printf '%s\n' "$PENDING" | sed 's/^\([0-9]*\):- \[ \] /  - (TODO.md:\1) /'
 echo
-echo "全体像・決定事項・次のタスクは HANDOFF.md にある。作業前に読むこと。"
+echo "現在地と次の一手は HANDOFF.md にある。作業前に読むこと。"
+# 判断台帳があるアプリでは、設計提案の前に読ませる（無いアプリでは何も言わない）
+[ -f "$PROJECT_DIR/logs/decisions.md" ] && echo "ユーザーと合意済みの判断は logs/decisions.md にある。設計・方針を提案する前に読み、蒸し返さないこと。"
 exit 0
