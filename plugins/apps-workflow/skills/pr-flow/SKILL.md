@@ -56,14 +56,16 @@ prompt: BASE=main、PR #<番号> の差分を検品してください。対象�
 
 ## 5. マージ
 
-CI が通り、レビュー判定が「マージ可」なら `gh pr merge <番号> --squash --delete-branch` を実行し、PR の URL を添えて事後報告する。
+CI が通り、レビュー判定が「マージ可」なら `gh pr merge <番号> --squash` を実行し、PR の URL を添えて事後報告する。
+**`--delete-branch` は付けない。** リモートの作業ブランチはリポジトリ設定（delete_branch_on_merge）が消す。
+Auto モードの分類器は「リモートブランチの削除」を破壊的操作として扱うため、付けるとマージのたびに止まる（2026-09-05 に判明）。
 CI が落ちたら `gh run view <run-id> --log-failed` で失敗箇所を特定して直し、push し直す。
 直せないとき・原因がユーザーにしか決められない前提に関わるときだけ報告して止まる。
 
 ## 6. 後始末
 
-- `--delete-branch` を作業ブランチ上で実行すると、リモート・ローカルの作業ブランチ削除と `main` への切り替えまで gh がやる。あとは `git pull`
-- 別の理由で残ったマージ済みブランチは、squash マージなので `-d` では消えない。`gh pr view <番号> --json state` で MERGED を確認してから `-D` で消す（削除前にユーザーに確認）
+- マージ後は `git checkout main && git pull` で `main` を追従させる。ローカルの作業ブランチは残してよい
+- 残ったマージ済みブランチは、squash マージなので `-d` では消えない。`gh pr view <番号> --json state` で MERGED を確認してから `-D` で消す（削除前にユーザーに確認）
 - リモートの作業ブランチはリポジトリ設定（delete_branch_on_merge）で自動削除される。新しいリポジトリでは `gh repo edit --delete-branch-on-merge` を忘れない
 
 ## ユーザーに操作を頼むときの URL の取り方
