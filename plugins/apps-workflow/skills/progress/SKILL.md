@@ -5,7 +5,7 @@ description: TODO.md からフェーズ別の進捗バー・残り件数・前�
 
 ## 進捗（TODO.md より自動集計）
 
-!`P="${CLAUDE_PLUGIN_ROOT:-}/hooks/progress.sh"; [ -f "$P" ] || P=$(ls ~/.claude/plugins/cache/n-yoshida-dev/apps-workflow/*/hooks/progress.sh 2>/dev/null | sort -V | tail -1); bash "$P"`
+!`P="${CLAUDE_PLUGIN_ROOT:-}/hooks/progress.sh"; [ -f "$P" ] || P=$(ls ~/.claude/plugins/cache/n-yoshida-dev/apps-workflow/*/hooks/progress.sh 2>/dev/null | sort -V | tail -1); if [ -n "$P" ]; then bash "$P"; else echo "(進捗スクリプトが見つからない。/plugin update apps-workflow@n-yoshida-dev で 1.4.0 以上に更新する)"; fi`
 
 ## やること
 

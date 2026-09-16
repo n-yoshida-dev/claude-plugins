@@ -2,6 +2,7 @@
 # SessionStart — 進捗表と TODO.md の未完タスクを context に流し込む
 #
 # stdout に書いた内容がそのまま Claude の context に入る（ユーザーの画面には出ない）。
+# 未完一覧は先頭レベルの `- [ ]` だけを数える。進捗表（progress.sh）は字下げした子項目も数えるので、件数は一致しないことがある。
 # CLAUDE.md に「TODO.md を読め」と書くより確実で、ファイル読み込み1回分を節約できる。
 # context を圧迫しないよう件数を絞る。
 #
@@ -27,7 +28,7 @@ echo
 PENDING=$(grep -n '^- \[ \]' "$TODO" | head -12)
 if [ -n "$PENDING" ]; then
   TOTAL=$(grep -c '^- \[ \]' "$TODO")
-  echo "### 未完タスク ${TOTAL} 件。先頭12件："
+  echo "### 未完タスク（先頭レベルのみ）${TOTAL} 件。先頭12件："
   echo
   printf '%s\n' "$PENDING" | sed 's/^\([0-9]*\):- \[ \] /  - (TODO.md:\1) /'
   echo
