@@ -10,8 +10,10 @@ HANDOFF / PLAN / SPEC / TODO / KNOWLEDGE / `logs/decisions.md` のドキュメ�
 |---|---|---|
 | フック（PreToolUse: Bash） | `hooks/guard-secrets.sh` | `git add` / `commit` / `stash` の直前にステージ済みファイルを検査し、秘密情報・ローカル専用ファイルがあれば exit 2 でブロックする |
 | フック（PostToolUse: Edit/Write） | `hooks/check-edited.sh` | `frontend/*.ts(x)` を編集したら typecheck と eslint、`backend/*.go` なら `go vet`。結果は `additionalContext` で返すだけでブロックしない |
-| フック（SessionStart） | `hooks/session-briefing.sh` | `TODO.md` の `- [ ]` 行を先頭12件まで context に流し込む。`logs/decisions.md` があればその案内も出す |
-| スキル | `/apps-workflow:handoff` | セッションの区切りに HANDOFF（現在地のみ）/ TODO / KNOWLEDGE / `logs/decisions.md` を更新する |
+| フック（SessionStart） | `hooks/session-briefing.sh` | `hooks/progress.sh` の進捗表と `TODO.md` の `- [ ]` 行（先頭12件）を context に流し込み、進捗表を最初の返答で見せるよう指示する。`logs/decisions.md` があればその案内も出す |
+| 集計（フックとスキルから呼ぶ） | `hooks/progress.sh` | `TODO.md` のチェックボックスをフェーズ（`##` 見出し）ごとに数え、進捗バー・残り件数・前回の区切り（HANDOFF.md の最終コミット）からの増減をコードブロックで出す。見出しに「確認待ち」「保留」を含む節は合計に入れず別枠。単体で `bash hooks/progress.sh <dir>` と叩ける |
+| スキル | `/apps-workflow:progress` | 進捗表をその場で見せる。「どこまで進んだ？」「残りは？」に答える |
+| スキル | `/apps-workflow:handoff` | セッションの区切りに HANDOFF（進捗表 + 現在地）/ TODO / KNOWLEDGE / `logs/decisions.md` を更新する。進捗表は TODO 更新後に集計して「## 進捗」節を丸ごと置き換える |
 | スキル | `/apps-workflow:pr-check` | CI と同じ検査（`scripts/check-*.sh` → 秘密情報 → frontend → backend）をローカルでまとめて回す |
 | スキル | `/apps-workflow:pr-flow` | PR の作成からマージまでの手順（検査 → PR 本文 → CI の待ち方 → acceptance-reviewer → マージ → 後始末）。Claude が PR を作る・マージするときに呼ぶ。ルール本体は apps ルート CLAUDE.md |
 | エージェント | `apps-workflow:acceptance-reviewer` | マージ前に差分を TODO.md の「完了条件：」・SPEC.md・CLAUDE.md「守ること」に照らして検品する読み取り専用の評価役。判定（マージ可／直してから／ユーザー判断が要る）を返すだけで、直すのは呼び出し側 |
