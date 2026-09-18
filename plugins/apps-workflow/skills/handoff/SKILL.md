@@ -1,7 +1,6 @@
 ---
 name: handoff
-description: セッションの区切りに、今回やったことを HANDOFF.md / TODO.md / KNOWLEDGE.md / logs/decisions.md に反映して次のセッションへ引き継ぐ。
-disable-model-invocation: true
+description: セッションの区切りに、今回やったことを HANDOFF.md / TODO.md / KNOWLEDGE.md / logs/decisions.md に反映して次のセッションへ引き継ぐ。Claude が自分で呼ぶ。呼ぶ場面は 2 つ：ユーザーが区切り・終了・引き継ぎを告げたとき（「今日はここまで」「セッションを閉じる」「引き継ぎを書いて」）、Claude がセッションの分割を提案してユーザーが同意したとき。作業の途中（未コミットの実装がある、PR が CI 待ち）では呼ばない。
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/progress.sh:*)
 ---
 
@@ -83,6 +82,8 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/progress.sh:*)
 
 - **gitignore 対象のファイル（`PRIVATE.md` / `*.local.*` / `.env`）の中身をこの4ファイルに書き写さない。** 4ファイルはコミット対象
 - 事実を AI 用（ルート直下）と人間用（`docs/`）の両方に書かない。AI 用から `docs/` へリンクする
+- 更新したファイルは、その場でコミットまで進める。`docs/handoff-YYYYMMDD` のようなブランチを切り、`apps-workflow:pr-flow` の手順でマージする
+  （`main` に直接コミットしない）。HANDOFF.md のコミットが次回の進捗表の「前回の区切り」になるので、未コミットのまま終わらない
 - 更新が終わったら、変更点を日本語のサマリーで報告する。**サマリーの冒頭に 4 の進捗表をコードブロックのまま載せる**
   （ユーザーが区切りで「どこまで進み、何が残っているか」を見るのはこの表）
 
