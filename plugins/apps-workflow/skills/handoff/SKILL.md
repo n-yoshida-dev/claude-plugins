@@ -2,6 +2,7 @@
 name: handoff
 description: セッションの区切りに、今回やったことを HANDOFF.md / TODO.md / KNOWLEDGE.md / logs/decisions.md に反映して次のセッションへ引き継ぐ。
 disable-model-invocation: true
+allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/progress.sh:*)
 ---
 
 ## 現在の状態
@@ -11,7 +12,6 @@ disable-model-invocation: true
 - 今日の日付: !`date +%Y-%m-%d`
 - HANDOFF.md の行数: !`wc -l < HANDOFF.md 2>/dev/null || echo "(なし)"`
 - logs/decisions.md: !`[ -f logs/decisions.md ] && echo "あり" || echo "なし"`
-- 進捗スクリプト: !`P="${CLAUDE_PLUGIN_ROOT:-}/hooks/progress.sh"; [ -f "$P" ] || P=$(ls ~/.claude/plugins/cache/n-yoshida-dev/apps-workflow/*/hooks/progress.sh 2>/dev/null | sort -V | tail -1); echo "${P:-(見つからない)}"`
 
 ## やること
 
@@ -60,9 +60,17 @@ disable-model-invocation: true
 
 **「今どこにいるか」だけを書く。目安 40 行。履歴を積まない。**
 
-- **「## 進捗」節**：1 で TODO.md を更新し終えてから、上の「進捗スクリプト」のパスを `bash` で実行し、
+- **「## 進捗」節**：1 で TODO.md を更新し終えてから、Bash ツールで次のコマンドを**このまま**実行し、
   出力（コードブロック 1 つ）で「## 進捗」節の中身を**丸ごと置き換える**。手で数値を書かない。
   節が無いアプリでは「## 現在地」の直前に `## 進捗` を作る。この節は 40 行の目安に含めない
+
+  ```bash
+  bash ${CLAUDE_PLUGIN_ROOT}/hooks/progress.sh
+  ```
+
+  上のパスはスキルの読み込み時にプラグインの置き場所（絶対パス）へ置き換わる。`$` で始まる文字列のまま見えている場合や
+  ファイルが無い場合は、`ls ~/.claude/plugins/cache/n-yoshida-dev/apps-workflow/*/hooks/progress.sh` で探し、
+  いちばん新しいバージョンのものを `bash` で実行する。それも無ければ進捗表は飛ばし、報告に「進捗スクリプトが見つからない」と書く
 - 「現在地」を今の状態に書き換える（フェーズ・main の状態・作業中のブランチ）。前の状態を残さない
 - 「次セッションで最初にやること」を、次に何から手を付けるべきかで書き直す。最初の一手だけ。一覧は `TODO.md` が持つ
 - 決定事項・やったこと・申し送りは書かない。書きたくなったら行き先へ：決定は 2、ハマりと技術判断は 3、やることは 1、やったことは `git log`
