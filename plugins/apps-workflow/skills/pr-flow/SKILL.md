@@ -65,7 +65,10 @@ CI が落ちたら `gh run view <run-id> --log-failed` で失敗箇所を特定�
 ## 6. 後始末
 
 - マージ後は `git checkout main && git pull` で `main` を追従させる。ローカルの作業ブランチは残してよい
-- 残ったマージ済みブランチは、squash マージなので `-d` では消えない。`gh pr view <番号> --json state` で MERGED を確認してから `-D` で消す（削除前にユーザーに確認）
+- 残ったマージ済みブランチは、squash マージなので `-d` では消えない。消すには `-D` が要るが、**`git branch -D` は Claude からは権限設定で拒否される**
+  （2026-09-19 に skill-matrix で判明）。Claude は確認まで行う：`gh pr view <番号> --json state,headRefOid` で MERGED であることと、
+  ローカルの先端（`git rev-parse <ブランチ>`）が PR の `headRefOid` と一致すること（＝未 push の作業が無い）。
+  実行はユーザーに頼み、そのまま貼れる `git branch -D <ブランチ...>` を渡す。拒否されたコマンドを形を変えて通そうとしない
 - リモートの作業ブランチはリポジトリ設定（delete_branch_on_merge）で自動削除される。新しいリポジトリでは `gh repo edit --delete-branch-on-merge` を忘れない
 
 ## ユーザーに操作を頼むときの URL の取り方

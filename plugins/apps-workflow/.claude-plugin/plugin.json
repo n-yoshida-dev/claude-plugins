@@ -1,7 +1,7 @@
 {
   "name": "apps-workflow",
   "displayName": "apps ワークフロー",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "自作アプリ共通の開発ワークフロー。秘密情報のコミット阻止・編集直後の型チェックと lint・起動時の進捗表と TODO 提示のフック3種と、/progress（進捗表）・/handoff（引き継ぎ更新）・/pr-check（CI と同じ検査をローカルで実行）・/pr-flow（PR からマージまでの手順）のスキル4種と、マージ前に差分を完了条件・SPEC に照らして検品する読み取り専用エージェント acceptance-reviewer",
   "author": {
     "name": "n-yoshida-dev",
