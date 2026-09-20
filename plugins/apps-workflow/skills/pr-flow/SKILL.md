@@ -64,11 +64,15 @@ CI が落ちたら `gh run view <run-id> --log-failed` で失敗箇所を特定�
 
 ## 6. 後始末
 
-- マージ後は `git checkout main && git pull` で `main` を追従させる。ローカルの作業ブランチは残してよい
-- 残ったマージ済みブランチは、squash マージなので `-d` では消えない。消すには `-D` が要るが、**`git branch -D` は Claude からは権限設定で拒否される**
-  （2026-09-19 に skill-matrix で判明）。Claude は確認まで行う：`gh pr view <番号> --json state,headRefOid` で MERGED であることと、
-  ローカルの先端（`git rev-parse <ブランチ>`）が PR の `headRefOid` と一致すること（＝未 push の作業が無い）。
-  実行はユーザーに頼み、そのまま貼れる `git branch -D <ブランチ...>` を渡す。拒否されたコマンドを形を変えて通そうとしない
+- マージ後は `git checkout main && git pull` で `main` を追従させる
+- 残ったマージ済みブランチは、squash マージなので `-d` では消えない。消すには `-D` が要る。**確認を 2 点とってから Claude が実行する**：
+  `gh pr view <番号> --json state,headRefOid` で MERGED であることと、ローカルの先端（`git rev-parse <ブランチ>`）が PR の
+  `headRefOid` と一致すること（＝未 push の作業が無い）。2 点が揃ったら `git branch -D <ブランチ...>` を実行する。
+  PR 番号が手元に無いとき（溜まった枝をまとめて片付けるとき）は `gh pr list --state merged --head <ブランチ> --json number,headRefOid`
+  でブランチ名から引く。**ここが空なら消さない**（マージされた PR が無い＝手元だけの枝）。
+  `permissions.ask` にあるので Auto モードでも承認プロンプトが出る。そこで止まるのは想定どおりなので、ユーザーにコマンドを渡す形に戻さない
+  （2026-09-19 時点は deny で実行できず頼んでいた。2026-09-21 に ask へ移した）。
+  **確認が 1 つでも取れないブランチは消さない。** 未マージの枝・未 push の作業が残る枝はそのままにして、消さなかった理由を報告に書く
 - リモートの作業ブランチはリポジトリ設定（delete_branch_on_merge）で自動削除される。新しいリポジトリでは `gh repo edit --delete-branch-on-merge` を忘れない
 
 ## ユーザーに操作を頼むときの URL の取り方
