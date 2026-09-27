@@ -481,7 +481,8 @@ document.getElementById('refresh').addEventListener('click', async (e) => {
   btn.textContent = '更新中…（数秒）'
   let res
   try {
-    res = await fetch('/update', { method: 'POST' })
+    // 相対パスにしておく。単独起動（/）でも、ハブの下（/<app>/）でも、そのダッシュボードの update に届く
+    res = await fetch('update', { method: 'POST' })
   } catch (err) {
     // 応答自体が無い＝起動したプロセスが止まっている
     btn.disabled = false
