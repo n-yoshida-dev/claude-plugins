@@ -94,6 +94,22 @@ C=$(ls ~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-li
 `apps-workflow:pr-flow` の手順どおり。PR 本文の「確認した証拠」は**必ず先端のコードで取り直した結果**を書く
 （レビュー指摘で直したあと古い証拠を残すと、acceptance-reviewer に止められる。skill-matrix PR #55 で 2 回）。
 
+## 複数のリポジトリをまとめて見る（ハブ）
+
+リポジトリごとに `--serve` するとポートがぶつかり、起動コマンドも増える。`hub.mjs` を 1 本起動すれば、
+`~/workspace/apps/*/dashboard/` を全部拾って `http://localhost:8790/` に一覧、`/<app>/` に各ダッシュボードを出す。
+
+```bash
+node "$(ls -d ~/.claude/plugins/cache/n-yoshida-dev/apps-workflow/*/skills/dashboard/hub.mjs | sort -V | tail -1)" --open
+# オプション: --root <apps の場所>（既定 ~/workspace/apps）--port <n>（既定 8790）--host 0.0.0.0（LAN のスマホから）
+```
+
+- 各リポジトリの `update.mjs` を子プロセスで呼ぶので、リポジトリごとの固有指標がそのまま出る。全部を並列に回す
+- 一覧の行の「更新」でそのアプリだけ、「全部更新」で全部を作り直す。各ダッシュボードの「更新」ボタンもハブ経由で効く
+  （テンプレートの `fetch('update')` は相対パス。v1.5.0 以前に写した `index.html` は `fetch('/update')` なので、`'update'` に直す）
+- ハブは各リポジトリの `--serve` を置き換えるものではない。単独で見たいときは今までどおり `--serve --open`
+- ダッシュボードが無いリポジトリは一覧に出ない。足したいリポジトリで、このスキルの手順 2〜5 を行う
+
 ## 表示項目の選び方
 
 | 出す | 出さない（または折りたたみ） |
@@ -113,6 +129,7 @@ C=$(ls ~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-li
 | `template/update.mjs` | 正本を読んで `data.js` を書く。`--serve` で配信し、`POST /update` で作り直す。`--open` でブラウザを開く | ★ `readProjectSpecific()` だけ |
 | `template/index.html` | `data.js` を読んで描く。ヘッダー（起動方法・更新）、帯、タイル、カード、折りたたみ。題名を縮める `short()` | 原則触らない。色は `:root` |
 | `template/README.md` | 目的・起動・更新・取得元・構成 | 固有指標の行だけ |
+| `hub.mjs`（写さない） | 全リポジトリのダッシュボードを 1 本で配信するハブ。プラグインの置き場所から直接起動する | 触らない |
 
 TODO.md の数え方は `hooks/progress.sh` と同じ（`##` = フェーズ、「確認待ち」「保留」は合計から外す）。
 HANDOFF.md は「現在地」「次…やること／一手」を含む `##` 見出しの節を取る。Beads は題名がプロジェクト名（CLAUDE.md の先頭見出し）で始まる epic の配下。

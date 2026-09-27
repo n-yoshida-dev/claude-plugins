@@ -16,7 +16,7 @@ HANDOFF / PLAN / SPEC / TODO / KNOWLEDGE / `logs/decisions.md` のドキュメ�
 | スキル | `/apps-workflow:handoff` | セッションの区切りに HANDOFF（進捗表 + 現在地）/ TODO / KNOWLEDGE / `logs/decisions.md` を更新する。進捗表は TODO 更新後に集計して「## 進捗」節を丸ごと置き換える。**Claude が区切りで自分で呼ぶ**（ユーザーが区切りを告げたとき・セッション分割の提案に同意したとき。v1.4.2 でユーザー起動限定を外した）。ユーザーが `/apps-workflow:handoff` と打ってもよい |
 | スキル | `/apps-workflow:pr-check` | CI と同じ検査（`scripts/check-*.sh` → 秘密情報 → frontend → backend）をローカルでまとめて回す |
 | スキル | `/apps-workflow:pr-flow` | PR の作成からマージまでの手順（検査 → PR 本文 → CI の待ち方 → acceptance-reviewer → マージ → 後始末）。Claude が PR を作る・マージするときに呼ぶ。ルール本体は apps ルート CLAUDE.md |
-| スキル | `/apps-workflow:dashboard` | 人間が開発状況（進捗・あなた待ち・今のタスク・CI・最近の変更・固有の指標）を 1 画面で見る「開発ダッシュボード」を、そのリポジトリ用に作る手順とテンプレート（`skills/dashboard/template/` の `update.mjs` / `index.html` / `README.md`）。「ダッシュボードを作りたい」「開発状況を見える化したい」で呼ぶ。方針（正本を読んで描くだけ・文章は 1 行・起動方法と更新ボタンをヘッダーに・依存 0）は共通で、見た目と固有の指標はリポジトリごとに変えてよい（v1.5.0） |
+| スキル | `/apps-workflow:dashboard` | 人間が開発状況（進捗・あなた待ち・今のタスク・CI・最近の変更・固有の指標）を 1 画面で見る「開発ダッシュボード」を、そのリポジトリ用に作る手順とテンプレート（`skills/dashboard/template/` の `update.mjs` / `index.html` / `README.md`）。「ダッシュボードを作りたい」「開発状況を見える化したい」で呼ぶ。方針（正本を読んで描くだけ・文章は 1 行・起動方法と更新ボタンをヘッダーに・依存 0）は共通で、見た目と固有の指標はリポジトリごとに変えてよい（v1.5.0）。`skills/dashboard/hub.mjs` を 1 本起動すると、全リポジトリのダッシュボードを `http://localhost:8790/` にまとめて配信する（v1.5.1） |
 | エージェント | `apps-workflow:acceptance-reviewer` | マージ前に差分を TODO.md の「完了条件：」・SPEC.md・CLAUDE.md「守ること」に照らして検品する読み取り専用の評価役。判定（マージ可／直してから／ユーザー判断が要る）を返すだけで、直すのは呼び出し側 |
 
 ## 受け入れレビューの呼び方（マージ前）
