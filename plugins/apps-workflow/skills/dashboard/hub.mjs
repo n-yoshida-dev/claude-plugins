@@ -86,15 +86,15 @@ async function ensureFresh(app) {
   return s
 }
 
-/** data.js（window.DASHBOARD_DATA = {...}）を読んで JSON にする。無ければ null */
+/** data.js（window.DASHBOARD_DATA = {...}）を読んで JSON にする。無ければ value=null、壊れていれば error に理由（握りつぶさず一覧に出す） */
 function readData(app) {
   const p = path.join(app.dash, 'data.js')
-  if (!fs.existsSync(p)) return null
+  if (!fs.existsSync(p)) return { value: null, error: null }
   try {
     const t = fs.readFileSync(p, 'utf8')
-    return JSON.parse(t.slice(t.indexOf('{')))
-  } catch {
-    return null
+    return { value: JSON.parse(t.slice(t.indexOf('{'))), error: null }
+  } catch (e) {
+    return { value: null, error: `data.js を読めない（${e.message}）` }
   }
 }
 
@@ -114,9 +114,9 @@ function ago(iso) {
 
 /** 1 アプリ分の 1 行に使う要約を data.js から取る */
 function summarize(app) {
-  const d = readData(app)
+  const { value: d, error: readError } = readData(app)
   const s = state.get(app.name)
-  if (!d) return { name: app.name, ok: false, error: s?.error ?? 'data.js がまだ無い' }
+  if (!d) return { name: app.name, ok: false, error: readError ?? s?.error ?? 'data.js がまだ無い' }
   const t = d.todo
   const pct = t && t.total.total ? Math.floor((100 * t.total.done) / t.total.total) : null
   const human = (d.beads?.human?.length ?? 0) + (d.todo?.askItems?.length ?? 0) + (d.specific?.human?.length ?? 0)
@@ -262,7 +262,14 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, JSON.stringify({ ok: true, apps: apps.map((a) => ({ name: a.name, error: state.get(a.name)?.error ?? null })) }), 'application/json')
     }
     const m = url.pathname.match(/^\/([^/]+)(\/.*)?$/)
-    const app = m && apps.find((a) => a.name === decodeURIComponent(m[1]))
+    // 壊れた % 表記（/%zz/ など）は decode が例外を投げるので、500 ではなく 404 にする
+    let wanted = null
+    try {
+      wanted = m && decodeURIComponent(m[1])
+    } catch {
+      wanted = null
+    }
+    const app = wanted && apps.find((a) => a.name === wanted)
     if (!app) return send(res, 404, 'not found', 'text/plain')
     const rest = m[2] ?? ''
     if (rest === '') {
