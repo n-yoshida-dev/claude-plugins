@@ -149,8 +149,8 @@
   }
   /* スマートフォン幅：1 列にし、タイルは 2 列（進捗だけ横いっぱい） */
   @media (max-width: 860px) {
-    .kpis { grid-template-columns: 1fr 1fr; }
-    .kpi.wide { grid-column: span 2; }
+    .kpis, .kpis.four { grid-template-columns: 1fr 1fr; }
+    .kpi.wide, .kpis.four .kpi.wide { grid-column: span 2; }
     .row.two, .row.three, .row.half { grid-template-columns: 1fr; }
   }
   @media (max-width: 480px) {
