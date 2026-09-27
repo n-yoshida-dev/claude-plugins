@@ -267,8 +267,10 @@ function readGithub() {
   for (const r of detailTargets) {
     const v = runJson('gh', ['run', 'view', String(r.id), '--json', 'jobs'])
     if (v.value?.jobs) {
+      // 画面に出すのは検査のジョブだけ。準備用のジョブ（例：skill-matrix の「対象の検出」）を隠したいときは、ここに名前を足す
+      const HIDDEN_JOBS = []
       r.jobs = v.value.jobs
-        .filter((j) => !/検出/.test(j.name))
+        .filter((j) => !HIDDEN_JOBS.includes(j.name))
         .map((j) => ({ name: j.name, status: j.status, conclusion: j.conclusion, url: j.url }))
     }
   }
@@ -322,7 +324,7 @@ function readBeads(name) {
 //     status: { kind: 'good'|'bad'|'warn'|'na', label: '成功', tile: 'データ検証', sub: '判定 3 件' },
 //                                                      // 最上段のタイルに出す状態 1 つ。kind は色、label は記号の横の文字
 //     stats: [{ value: 46, label: '項目' }, ...],      // 数字（4 つまで）
-//     bars: [{ label: 'L0', value: 6 }, ...],          // 1 本の帯の内訳（任意。順に濃くなる）
+//     bars: [{ label: 'L1', value: 6 }, ...],          // 1 本の帯の内訳（任意。先頭から順に薄い色 → 濃い色。5 段階まで）
 //     note: 'Web アプリ開発の学習ロードマップ',         // 小さな補足 1 行
 //     output: ['…', '…'],                              // 折りたたみに出す生の出力（失敗時のログなど）
 //     alerts: [{ level: 'error'|'warn', text: '…' }],  // 最上段の注意に足すもの
@@ -398,7 +400,7 @@ function writeData(quiet) {
     const t = d.todo?.total
     console.log(
       `${path.relative(ROOT, OUT)} を更新（${Date.now() - started} ms）: ` +
-        `進捗 ${t ? `${t.done}/${t.total}` : '-'}、人間待ち ${d.beads.human.length + (d.todo?.askItems.length ?? 0)} 件、` +
+        `進捗 ${t ? `${t.done}/${t.total}` : '-'}、人間待ち ${d.beads.human.length + (d.todo?.askItems.length ?? 0) + (d.specific?.human?.length ?? 0)} 件、` +
         `注意 ${d.alerts.length} 件、ブランチ ${d.git.branch}`,
     )
   }

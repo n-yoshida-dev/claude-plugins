@@ -151,7 +151,7 @@
   @media (max-width: 860px) {
     .kpis { grid-template-columns: 1fr 1fr; }
     .kpi.wide { grid-column: span 2; }
-    .row.two, .row.three { grid-template-columns: 1fr; }
+    .row.two, .row.three, .row.half { grid-template-columns: 1fr; }
   }
   @media (max-width: 480px) {
     .wrap { padding: 12px; }
@@ -363,7 +363,7 @@ function render(d) {
   const specificCard = x
     ? `<section class="card"><h2>${esc(x.title ?? '固有の指標')}</h2>
       ${x.stats?.length ? `<div class="nums">${x.stats.slice(0, 4).map((s) => `<div><b>${esc(s.value)}</b><span>${esc(s.label)}</span></div>`).join('')}</div>` : ''}
-      ${x.bars?.length ? `<div class="levels">${x.bars.map((b, i) => (b.value ? `<i data-l="${Math.min(i, 5)}" style="flex:${b.value}" title="${esc(b.label)}: ${esc(b.value)}"></i>` : '')).join('')}</div>
+      ${x.bars?.length ? `<div class="levels">${x.bars.map((b, i) => (b.value ? `<i data-l="${Math.min(i + 1, 5)}" style="flex:${b.value}" title="${esc(b.label)}: ${esc(b.value)}"></i>` : '')).join('')}</div>
       <div class="legend">${x.bars.map((b) => `${esc(b.label)} ${esc(b.value)}`).join(' · ')}</div>` : ''}
       ${x.note ? `<div class="legend" style="margin-top:6px">${esc(x.note)}</div>` : ''}
     </section>`
