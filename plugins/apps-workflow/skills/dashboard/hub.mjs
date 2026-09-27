@@ -8,7 +8,7 @@
 //   全リポジトリを並列に回すので、待ち時間はいちばん遅い 1 本ぶん
 // - http://<host>:<port>/            一覧（1 アプリ 1 枚のカード：進捗・あなた待ち・CI・作業ツリー・今のタスク）
 //   http://<host>:<port>/<app>/      そのリポジトリのダッシュボード（dashboard/index.html をそのまま配信）
-//   GET  /<app>/data.js              手元の data.js をすぐ返す。60 秒より古ければ裏で作り直す（待たせない）。--interval 秒ごとにも全部を裏で作り直す
+//   GET  /<app>/data.js              手元の data.js をすぐ返す。60 秒より古ければ裏で作り直す（待たせない）。--interval 秒ごとにも 60 秒より古いアプリを裏で作り直す
 //   POST /<app>/update, /update-all  作り直す（画面の「更新」「全部更新」ボタン）
 // - 各リポジトリの `node dashboard/update.mjs --serve` はそのまま単独でも使える。ハブはその上に被せるだけ
 //
@@ -31,7 +31,10 @@ const HOST = flag('--host', '127.0.0.1')
 // 作り直しは 1 アプリ 7〜8 秒かかる（大半は gh と bd の問い合わせ）。画面を開くたびに待たせないよう、
 // 開いたときは手元の data.js をすぐ返し、STALE_MS より古ければ裏で作り直す。加えて REFRESH_MS ごとに全アプリを裏で作り直す
 const STALE_MS = 60_000
-const REFRESH_MS = Number(flag('--interval', '300')) * 1000 // 既定 5 分。0 なら定期の作り直しをしない
+// --interval 秒ごとに、60 秒より古いアプリを裏で作り直す。既定 300（5 分）、0 で定期の作り直しをしない。数でなければ既定に戻して知らせる
+const INTERVAL_ARG = Number(flag('--interval', '300'))
+if (!Number.isFinite(INTERVAL_ARG) || INTERVAL_ARG < 0) console.error(`--interval は 0 以上の秒数で指定する（"${flag('--interval')}" は使えないので 300 にする）`)
+const REFRESH_MS = (Number.isFinite(INTERVAL_ARG) && INTERVAL_ARG >= 0 ? INTERVAL_ARG : 300) * 1000
 
 // ---------- リポジトリの発見 ----------
 
@@ -57,11 +60,22 @@ function regenerate(app) {
   state.set(app.name, s)
   if (s.running) return s.running
   s.running = new Promise((resolve) => {
-    const child = spawn(process.execPath, [path.join(app.dash, 'update.mjs'), '--quiet'], {
-      cwd: app.dir,
-      stdio: ['ignore', 'ignore', 'pipe'],
-      timeout: 180_000,
-    })
+    // spawn がその場で例外を投げても（ファイル記述子の枯渇など）拒否にせず、error に理由を残して resolve する。
+    // 拒否にすると裏の作り直しでは受け手が無く、プロセスごと落ちたり running が残って二度と作り直されなくなる
+    let child
+    try {
+      child = spawn(process.execPath, [path.join(app.dash, 'update.mjs'), '--quiet'], {
+        cwd: app.dir,
+        stdio: ['ignore', 'ignore', 'pipe'],
+        timeout: 180_000,
+      })
+    } catch (e) {
+      s.at = Date.now()
+      s.error = `update.mjs を起動できない（${e.message}）`
+      s.running = null
+      console.error(`[${app.name}] ${s.error}`)
+      return resolve(s)
+    }
     let stderr = ''
     child.stderr.on('data', (c) => (stderr += c))
     child.on('close', (code) => {
@@ -85,7 +99,14 @@ function regenerate(app) {
 function refreshInBackground(app) {
   const s = state.get(app.name)
   if (s?.running) return
-  if (!s || Date.now() - s.at > STALE_MS) regenerate(app)
+  if (!s || Date.now() - s.at > STALE_MS) regenerate(app).catch((e) => console.error(`[${app.name}] 裏の作り直しに失敗: ${e.message}`))
+}
+
+/** 「更新」ボタン用：押した時点より後に始まった作り直しの結果を返す（走っている回が押す前に始まっていれば、終わるのを待ってもう一度） */
+async function regenerateNow(app) {
+  const running = state.get(app.name)?.running
+  if (running) await running
+  return regenerate(app)
 }
 
 /** data.js（window.DASHBOARD_DATA = {...}）を読んで JSON にする。無ければ value=null、壊れていれば error に理由（握りつぶさず一覧に出す） */
@@ -355,7 +376,7 @@ const server = http.createServer(async (req, res) => {
     const apps = discover()
     if (url.pathname === '/') return send(res, 200, hubPage(apps))
     if (url.pathname === '/update-all' && req.method === 'POST') {
-      await Promise.all(apps.map(regenerate))
+      await Promise.all(apps.map(regenerateNow))
       return send(res, 200, JSON.stringify({ ok: true, apps: apps.map((a) => ({ name: a.name, error: state.get(a.name)?.error ?? null })) }), 'application/json')
     }
     const m = url.pathname.match(/^\/([^/]+)(\/.*)?$/)
@@ -374,7 +395,7 @@ const server = http.createServer(async (req, res) => {
       return res.end()
     }
     if (rest === '/update' && req.method === 'POST') {
-      const s = await regenerate(app)
+      const s = await regenerateNow(app)
       return send(res, s.error ? 500 : 200, JSON.stringify({ ok: !s.error, error: s.error }), 'application/json')
     }
     if (rest === '/data.js') {
@@ -413,5 +434,14 @@ server.listen(PORT, HOST, async () => {
   await Promise.all(apps.map(regenerate))
   console.log(`初回の生成が終わりました（${apps.filter((a) => !state.get(a.name)?.error).length}/${apps.length} 成功）`)
   // 以後は REFRESH_MS ごとに全アプリを裏で作り直す（画面を開いたときに新しいデータがもうある状態にする）
-  if (REFRESH_MS > 0) setInterval(() => discover().forEach((a) => refreshInBackground(a)), REFRESH_MS)
+  if (REFRESH_MS > 0) {
+    setInterval(() => {
+      // ROOT が読めなくなった等で例外が出ても、ハブ自体は落とさず次の回に持ち越す
+      try {
+        discover().forEach((a) => refreshInBackground(a))
+      } catch (e) {
+        console.error(`定期の作り直しで失敗（次の回にもう一度試す）: ${e.message}`)
+      }
+    }, REFRESH_MS)
+  }
 })
