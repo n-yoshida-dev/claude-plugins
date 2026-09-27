@@ -113,6 +113,48 @@ function ago(iso) {
 }
 
 /** 1 アプリ分の 1 行に使う要約を data.js から取る */
+/** 全角の括弧書き（…）を入れ子ごと取り除く */
+function dropParens(s) {
+  let out = ''
+  let depth = 0
+  for (const ch of s) {
+    if (ch === '（') depth++
+    else if (ch === '）') depth = Math.max(0, depth - 1)
+    else if (depth === 0) out += ch
+  }
+  return out
+}
+
+/** 一覧用の短い題名（各ダッシュボードの short() と同じ）：記法・括弧書き・注記・2 文目以降を落とし、長ければ「…」で切る */
+function short(s, max = 60) {
+  let t = String(s ?? '').replace(/^【[^】]+】\s*/, '')
+  t = t.replace(/([）。])\s*\*\*.*$/, '$1').replace(/`|\*\*/g, '')
+  t = dropParens(t).split('。')[0]
+  const c = t.indexOf('：')
+  if (c >= 8) t = t.slice(0, c)
+  t = t.replace(/\s+/g, ' ').trim()
+  return t.length > max ? t.slice(0, max - 1) + '…' : t
+}
+
+/** 先頭の【…】を種類の札にする（「ユーザー確認」→「確認」） */
+const bracketTag = (s) => (String(s).match(/^【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '')
+const KIND = { decision: '判断', review: '確認', action: '作業' }
+
+/** そのアプリの「あなた待ち」（Beads の human、TODO の確認待ち、固有の human）。各ダッシュボードと同じ数え方 */
+function humanItems(app, d) {
+  const items = []
+  for (const b of d.beads?.human ?? []) {
+    const full = String(b.title ?? '').replace(/^\[[^\]]+\]\s*/, '')
+    items.push({ app: app.name, kind: (b.labels ?? []).map((l) => KIND[l]).find(Boolean) ?? '確認', text: short(full), full, src: b.id })
+  }
+  for (const a of d.todo?.askItems ?? []) {
+    const full = String(a.text ?? '').replace(/\s*完了条件：.*$/, '')
+    items.push({ app: app.name, kind: bracketTag(full) || '確認', text: short(full), full, src: `TODO.md:${a.line}` })
+  }
+  for (const h of d.specific?.human ?? []) items.push({ app: app.name, kind: h.kind ?? '判断', text: short(h.text), full: h.full ?? h.text, src: h.src ?? '' })
+  return items
+}
+
 function summarize(app) {
   const { value: d, error: readError } = readData(app)
   const s = state.get(app.name)
@@ -136,6 +178,7 @@ function summarize(app) {
   const tree = dirty ? ['warn', `未コミット ${dirty}`] : d.git?.ahead ? ['warn', `未push ${d.git.ahead}`] : ['good', 'クリーン']
   const bad = (d.alerts ?? []).filter((a) => a.level === 'error').length
   const first = t?.openTasks?.[0]?.text ?? ''
+  const humanList = humanItems(app, d)
   return {
     name: app.name,
     ok: true,
@@ -149,9 +192,27 @@ function summarize(app) {
     branch: d.git?.branch ?? '',
     bad,
     // 一覧用に縮める：先頭の【…】・記法・括弧書きを落とす（各ダッシュボードの short() と同じ考え方）
-    now: first.replace(/^【[^】]+】\s*/, '').replace(/`|\*\*/g, '').replace(/（[^）]*）/g, '').split('。')[0].trim().slice(0, 40),
+    now: short(first),
+    nowFull: first,
+    humanList,
     generatedAt: d.generatedAt,
   }
+}
+
+/** 全アプリの「あなた待ち」を表の上に 1 行ずつ。無ければ出さない */
+function youBox(rows) {
+  const groups = rows.filter((r) => r.humanList?.length)
+  const total = groups.reduce((n, r) => n + r.humanList.length, 0)
+  if (!total) return ''
+  // アプリごとにまとめる（毎行にアプリ名を付けると読みにくい）
+  return `<section class="you-box"><h2>あなた待ち<b>${total}</b> <span class="src">判断・確認・作業。押すと全文</span></h2>${groups
+    .map(
+      (r) =>
+        `<h3><a href="/${esc(r.name)}/">${esc(r.name)}</a> <span class="src">${r.humanList.length} 件</span></h3><ul class="list">${r.humanList
+          .map((it) => `<li><span class="tag k-${esc(it.kind)}">${esc(it.kind)}</span><span class="txt" title="${esc(it.full)}">${esc(it.text)}</span><span class="src">${esc(it.src)}</span></li>`)
+          .join('')}</ul>`,
+    )
+    .join('')}</section>`
 }
 
 function hubPage(apps) {
@@ -165,7 +226,7 @@ function hubPage(apps) {
       <td class="num ${r.human ? 'you-n' : ''}"><b>${r.human}</b><div class="sub">件</div></td>
       <td>${st(...r.ci)}</td>
       <td>${st(...r.tree)}${r.bad ? `<div class="sub s-bad">✕ 異常 ${r.bad}</div>` : ''}</td>
-      <td class="now" title="${esc(r.now)}">${esc(r.now)}</td>
+      <td><span class="now txt" title="${esc(r.nowFull)}">${esc(r.now)}</span></td>
       <td class="sub">${ago(r.generatedAt)}${r.error ? `<div class="s-bad">! ${esc(r.error)}</div>` : ''}</td>
       <td><button type="button" data-app="${esc(r.name)}">更新</button></td>
     </tr>`
@@ -194,20 +255,35 @@ function hubPage(apps) {
   td.num b { font-size:18px; font-variant-numeric:tabular-nums; } td.you-n b { color:var(--you); }
   .sub { font-size:12px; color:var(--faint); } .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; }
   .bar { height:5px; background:var(--track); border-radius:3px; overflow:hidden; margin:3px 0; width:110px; } .bar i { display:block; height:100%; background:var(--l3); }
-  .now { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+  .now { display:block; max-width:260px; font-size:14px; }
+  /* 縮めた題名。1 行で切り、全文はマウスを載せるか押すと出る */
+  .txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+  .txt.full { white-space:normal; overflow:visible; }
+  /* あなた待ち（全アプリ） */
+  .you-box { background:var(--card); border:1px solid var(--you); border-radius:10px; padding:12px 16px; margin-bottom:12px; }
+  .you-box h2 { font-size:14px; margin:0 0 6px; color:var(--sub); font-weight:600; } .you-box h2 b { font-size:18px; color:var(--you); margin-left:6px; }
+  .you-box h3 { font-size:13px; margin:12px 0 2px; font-weight:600; } .you-box h3:first-of-type { margin-top:4px; }
+  ul.list { list-style:none; margin:0; padding:0; }
+  ul.list li { display:flex; align-items:center; gap:10px; padding:6px 0; border-top:1px solid var(--line); min-width:0; }
+  ul.list li:first-child { border-top:0; } ul.list .txt { flex:1; min-width:0; }
+  .tag { flex:none; font-size:11px; line-height:20px; padding:0 8px; border-radius:4px; background:var(--tag); color:var(--sub); white-space:nowrap; }
+  .tag.app { color:var(--link); } .tag.k-判断 { background:var(--you-bg); color:var(--you); }
+  .src { flex:none; font-size:12px; color:var(--faint); white-space:nowrap; }
   .s-good{color:var(--good)} .s-bad{color:var(--bad)} .s-warn{color:var(--warn)} .s-run{color:var(--link)} .s-na{color:var(--faint)}
   a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
   .empty { padding:24px; color:var(--faint); }
   @media (max-width: 860px) {
     table, thead, tbody, tr, td { display:block; } thead { display:none; }
-    tr { border-top:1px solid var(--line); padding:8px 0; } td { border:0; padding:4px 10px; } .now { max-width:none; white-space:normal; }
+    tr { border-top:1px solid var(--line); padding:8px 0; } td { border:0; padding:4px 10px; } .now { max-width:none; }
+    /* 狭い幅では題名を 2 行まで見せ、付箋 ID は隠す */
+    .txt { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; } .txt.full { display:block; -webkit-line-clamp:unset; } .src { display:none; }
   }
 </style></head><body><div class="wrap">
 <header><h1>開発ダッシュボード</h1><span class="meta">${apps.length} アプリ · ${esc(ROOT)}</span>
   <button id="howto" type="button">起動方法</button><button id="all" type="button">全部更新</button><div id="hint" hidden></div></header>
 ${
   apps.length
-    ? `<table><thead><tr><th>アプリ</th><th>進捗</th><th>あなた待ち</th><th>CI（main）</th><th>作業ツリー</th><th>今のタスク</th><th>更新</th><th></th></tr></thead>
+    ? `${youBox(rows)}<table><thead><tr><th>アプリ</th><th>進捗</th><th>あなた待ち</th><th>CI（main）</th><th>作業ツリー</th><th>今のタスク</th><th>更新</th><th></th></tr></thead>
 <tbody>${rows.map(tr).join('')}</tbody></table>`
     : `<div class="empty">${esc(ROOT)} の直下に dashboard/update.mjs と dashboard/index.html を持つリポジトリがありません。各リポジトリで /apps-workflow:dashboard を呼んで作ってください。</div>`
 }
@@ -235,6 +311,13 @@ async function post(url, btn) {
 }
 document.getElementById('all').addEventListener('click', (e) => post('/update-all', e.currentTarget))
 for (const b of document.querySelectorAll('button[data-app]')) b.addEventListener('click', (e) => post('/' + e.currentTarget.dataset.app + '/update', e.currentTarget))
+// 縮めた題名を押すと全文に切り替わる（もう一度押すと戻る）
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('.txt[title]')
+  if (!el) return
+  if (el.dataset.short == null) { el.dataset.short = el.textContent; el.textContent = el.title; el.classList.add('full') }
+  else { el.textContent = el.dataset.short; delete el.dataset.short; el.classList.remove('full') }
+})
 // 60 秒ごとに読み直す。ハブが止まっていたら、ブラウザのエラー画面にせずこの画面のまま案内を出す
 setInterval(async () => {
   try { const r = await fetch('/', { method: 'HEAD', cache: 'no-store' }); if (!r.ok) throw new Error(); location.reload() }
