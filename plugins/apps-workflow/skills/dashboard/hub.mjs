@@ -6,7 +6,7 @@
 // - <root>/*/dashboard/update.mjs があるリポジトリを自動で拾う（設定ファイルは無い）
 // - 各リポジトリのデータは、そのリポジトリ自身の update.mjs を子プロセスで実行して作る（リポジトリごとの固有指標がそのまま効く）。
 //   全リポジトリを並列に回すので、待ち時間はいちばん遅い 1 本ぶん
-// - http://<host>:<port>/            一覧（進捗・あなた待ち・CI・作業ツリー を 1 行ずつ）
+// - http://<host>:<port>/            一覧（1 アプリ 1 枚のカード：進捗・あなた待ち・CI・作業ツリー・今のタスク）
 //   http://<host>:<port>/<app>/      そのリポジトリのダッシュボード（dashboard/index.html をそのまま配信）
 //   GET  /<app>/data.js              10 秒より古ければ作り直してから返す
 //   POST /<app>/update, /update-all  作り直す（画面の「更新」「全部更新」ボタン）
@@ -135,6 +135,13 @@ function short(s, max = 60) {
   return t.length > max ? t.slice(0, max - 1) + '…' : t
 }
 
+/** 全文を見せるときの軽い整形：先頭の【…】・記法・括弧書きだけを落とし、空白を詰める。文や「：」では切らない */
+function plain(s) {
+  return dropParens(String(s ?? '').replace(/^【[^】]+】\s*/, '').replace(/`|\*\*/g, ''))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** 先頭の【…】を種類の札にする（「ユーザー確認」→「確認」） */
 const bracketTag = (s) => (String(s).match(/^【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '')
 const KIND = { decision: '判断', review: '確認', action: '作業' }
@@ -147,7 +154,7 @@ function humanItems(d) {
   const items = []
   for (const b of d.beads?.human ?? []) {
     const full = String(b.title ?? '').replace(/^\[[^\]]+\]\s*/, '')
-    items.push({ kind: (b.labels ?? []).map((l) => KIND[l]).find(Boolean) ?? '確認', text: short(full, 80), full, src: b.id, pri: Number(b.priority ?? 4) })
+    items.push({ kind: (b.labels ?? []).map((l) => KIND[l]).find(Boolean) ?? '確認', text: short(full, 80), full, src: b.id, pri: Number.isFinite(Number(b.priority)) ? Number(b.priority) : 4 })
   }
   // 固有の human は update.mjs が既に短い文で返す前提（テンプレートの index.html と同じく縮めない）
   for (const h of d.specific?.human ?? []) items.push({ kind: h.kind ?? '判断', text: h.text, full: h.full ?? h.text, src: h.src ?? '', pri: 2 })
@@ -161,7 +168,7 @@ function humanItems(d) {
 
 const TOP_HUMAN = 3 // 一覧の各アプリの枠に出す「あなた待ち」の件数。残りはそのアプリのダッシュボードで見る
 
-/** 1 アプリ分の 1 行に使う要約を data.js から取る */
+/** 1 アプリ分のカードに使う要約を data.js から取る */
 function summarize(app) {
   const { value: d, error: readError } = readData(app)
   const s = state.get(app.name)
@@ -198,8 +205,8 @@ function summarize(app) {
     tree,
     branch: d.git?.branch ?? '',
     bad,
-    // 記法・括弧書きだけ落とし、長さでは切らない（枠の中で折り返して全文を見せる）
-    now: short(first, 200),
+    // 今のタスクは全文を見せる。short() は「：」「。」の後ろを落とすので使わず、記法と括弧書きだけを落とす
+    now: plain(first),
     nowFull: first,
     humanList,
     generatedAt: d.generatedAt,
@@ -226,7 +233,7 @@ function appCard(r) {
       <div><div class="kl">作業ツリー</div>${st(...r.tree)}${r.bad ? `<div class="sub s-bad">✕ 異常 ${r.bad}</div>` : ''}</div>
     </div>
     <div class="body">
-      <div><div class="kl">今のタスク</div><div class="now" title="${esc(r.nowFull)}">${r.now ? esc(r.now) : '<span class="sub">未完タスクなし</span>'}</div></div>
+      <div><div class="kl">今のタスク</div><div class="now txt" title="${esc(r.nowFull)}">${r.now ? esc(r.now) : '<span class="sub">未完タスクなし</span>'}</div></div>
       <div><div class="kl">あなた待ち（優先度の高い ${TOP_HUMAN} 件）</div>${youList}</div>
     </div>
     ${r.error ? `<div class="sub s-bad">! ${esc(r.error)}</div>` : ''}
@@ -261,6 +268,8 @@ function hubPage(apps) {
   .stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:10px 0; padding:10px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
   .stats b { font-size:20px; font-variant-numeric:tabular-nums; } .you-n { color:var(--you); }
   .body { display:grid; grid-template-columns:2fr 3fr; gap:16px; }
+  /* 空白を含まない長い文字列（パス・URL）でも枠からはみ出さないように */
+  .body > div, .stats > div { min-width:0; } .now, ul.list .txt { overflow-wrap:anywhere; }
   .kl { font-size:12px; color:var(--sub); margin-bottom:2px; }
   .sub { font-size:12px; color:var(--faint); } .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; }
   .bar { height:5px; background:var(--track); border-radius:3px; overflow:hidden; margin:3px 0; width:110px; } .bar i { display:block; height:100%; background:var(--l3); }
@@ -296,7 +305,7 @@ const startCmd = ${JSON.stringify(startCmd)}
 const hint = document.getElementById('hint')
 document.getElementById('howto').addEventListener('click', () => {
   if (!hint.hidden) { hint.hidden = true; return }
-  hint.innerHTML = '<div>ターミナルで次を実行すると、このページが開きます（起動したまま置いておく。閉じたら再実行）。各アプリの行の「更新」でそのアプリだけ、「全部更新」で全部を作り直します。</div><pre>' + startCmd.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</pre>'
+  hint.innerHTML = '<div>ターミナルで次を実行すると、このページが開きます（起動したまま置いておく。閉じたら再実行）。各アプリのカードの「更新」でそのアプリだけ、「全部更新」で全部を作り直します。</div><pre>' + startCmd.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</pre>'
   hint.hidden = false
 })
 async function post(url, btn) {
