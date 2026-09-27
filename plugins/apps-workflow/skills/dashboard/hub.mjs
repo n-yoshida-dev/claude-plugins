@@ -233,7 +233,7 @@ function appCard(r) {
       <div><div class="kl">作業ツリー</div>${st(...r.tree)}${r.bad ? `<div class="sub s-bad">✕ 異常 ${r.bad}</div>` : ''}</div>
     </div>
     <div class="body">
-      <div><div class="kl">今のタスク</div><div class="now txt" title="${esc(r.nowFull)}">${r.now ? esc(r.now) : '<span class="sub">未完タスクなし</span>'}</div></div>
+      <div><div class="kl">今のタスク</div>${r.now ? `<div class="now txt" title="${esc(r.nowFull)}">${esc(r.now)}</div>` : '<div class="sub">未完タスクなし</div>'}</div>
       <div><div class="kl">あなた待ち（優先度の高い ${TOP_HUMAN} 件）</div>${youList}</div>
     </div>
     ${r.error ? `<div class="sub s-bad">! ${esc(r.error)}</div>` : ''}
