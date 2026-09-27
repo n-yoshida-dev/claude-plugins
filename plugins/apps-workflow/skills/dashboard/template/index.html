@@ -13,7 +13,8 @@
     --good: #1c7c4c; --good-bg: #e2f2e9;
     --warn: #93600a; --warn-bg: #fdf1d6;
     --bad: #b93a2a; --bad-bg: #fbe3dd;
-    --you: #b8432a; --you-bg: #fcebe5;
+    /* あなた待ちの強調色。失敗の赤（--bad）と見分けがつくよう紫系にする */
+    --you: #6d3fc0; --you-bg: #efe8fb;
     --tag: #eef1f5;
     /* 帯の段階色（薄い → 濃い）。プロジェクトに色の決まりがあれば、その値に差し替える */
     --l1: #86b6ef; --l2: #5598e7; --l3: #2a78d6; --l4: #1c5cab; --l5: #104281;
@@ -27,7 +28,7 @@
       --good: #6fd39a; --good-bg: #16301f;
       --warn: #f0c050; --warn-bg: #36290e;
       --bad: #f28b74; --bad-bg: #3a1d17;
-      --you: #f0906c; --you-bg: #3a2019;
+      --you: #b99af0; --you-bg: #2a2140;
       --tag: #242c3a;
       --l1: #9ec5f4; --l2: #6aa6ec; --l3: #3f88dd; --l4: #2d6fc0; --l5: #1f579c;
     }
@@ -75,13 +76,13 @@
   .kv small { font-size: 15px; font-weight: 500; margin-left: 2px; color: var(--sub); }
   .kv.st { font-size: 20px; padding: 6px 0 2px; }
   .ks { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .kpi.you { border-color: var(--you); background: var(--you-bg); }
+  /* あなた待ちは件数の数字だけに色を付ける（枠や背景まで赤くすると、いつも赤くなって目立たせる意味が無くなる） */
   .kpi.you .kv { color: var(--you); }
   .bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; margin: 4px 0 6px; }
   .bar i { display: block; height: 100%; background: var(--l3); border-radius: 3px; }
 
-  /* 状態の記号と色 */
-  .s-good { color: var(--good); } .s-bad { color: var(--bad); } .s-warn { color: var(--warn); } .s-run { color: var(--link); } .s-na { color: var(--faint); }
+  /* 状態の記号と色。色は異常にだけ使い、正常（✓）は灰色にする（毎回緑だと黄や赤が埋もれる） */
+  .s-good { color: var(--faint); } .s-bad { color: var(--bad); } .s-warn { color: var(--warn); } .s-run { color: var(--link); } .s-na { color: var(--faint); }
 
   /* カード */
   .row { display: grid; gap: 12px; margin-bottom: 12px; }
@@ -91,8 +92,10 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
   .card h2 { font-size: 14px; margin: 0 0 6px; color: var(--sub); font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
   .card h2 .count { font-size: 18px; color: var(--ink); }
-  .card.you-card { border-color: var(--you); }
   .card.you-card h2 .count { color: var(--you); }
+  /* あなた待ちは上位だけ出し、残りは「ほか N 件を表示」で開く */
+  ul.list li.extra { display: none; } ul.list.open li.extra { display: flex; }
+  .more-btn { margin-top: 6px; font: inherit; font-size: 13px; color: var(--link); background: none; border: 0; padding: 2px 0; cursor: pointer; }
   .card h3 { font-size: 12px; color: var(--faint); font-weight: 500; margin: 14px 0 2px; }
 
   /* 1 行ずつの一覧。長い題名は 1 行で切り、全文はマウスを載せると出る */
@@ -102,9 +105,8 @@
   .txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .src { flex: none; font-size: 12px; color: var(--faint); white-space: nowrap; }
   .tag { flex: none; font-size: 11px; line-height: 20px; padding: 0 8px; border-radius: 4px; background: var(--tag); color: var(--sub); white-space: nowrap; }
+  /* 種類の札は、あなたの判断が要る「判断」だけ色を付ける（確認・作業まで黄や緑にすると、状態の色と紛れる） */
   .tag.k-判断 { background: var(--you-bg); color: var(--you); }
-  .tag.k-確認 { background: var(--warn-bg); color: var(--warn); }
-  .tag.k-作業 { background: var(--good-bg); color: var(--good); }
   .tag.blocked { background: transparent; border: 1px solid var(--line); color: var(--faint); }
   .sym { flex: none; width: 1.2em; text-align: center; font-weight: 700; }
   /* 押して全文に切り替えた題名は、折り返して全部見せる */
@@ -291,15 +293,19 @@ function render(d) {
     ...d.beads.human.map((b) => {
       const title = b.title.replace(/^\[[^\]]+\]\s*/, '')
       const kind = b.labels.map((l) => KIND[l]).find(Boolean) ?? '確認'
-      return { kind, text: short(title), full: title, src: b.id, blocked: b.blockedBy.length > 0 }
+      const pri = Number.isFinite(Number(b.priority)) ? Number(b.priority) : 4
+      return { kind, text: short(title), full: title, src: b.id, blocked: b.blockedBy.length > 0, pri }
     }),
     ...(t?.askItems ?? []).map((a) => {
       const full = a.text.replace(/\s*完了条件：.*$/, '')
-      return { kind: bracketTag(full) || '確認', text: short(full), full, src: 'TODO', blocked: false }
+      return { kind: bracketTag(full) || '確認', text: short(full), full, src: 'TODO', blocked: false, pri: 5 }
     }),
   ]
   // プロジェクト固有の「人が決めるもの」（update.mjs の readProjectSpecific が返す human）
-  for (const it of x?.human ?? []) human.push({ kind: it.kind ?? '判断', text: it.text, full: it.full ?? it.text, src: it.src ?? '', blocked: false })
+  for (const it of x?.human ?? []) human.push({ kind: it.kind ?? '判断', text: it.text, full: it.full ?? it.text, src: it.src ?? '', blocked: false, pri: 2 })
+  // 優先度の高い順に並べる（ハブと同じ）：Beads は priority（0 が最優先）、固有の human は P2 相当、TODO の確認待ちは最後。
+  // sort は安定なので、同じ優先度の中では元の並びが保たれる
+  human.sort((a, b) => a.pri - b.pri)
 
   // 2. 数字のタイル
   const pct = t && t.total.total ? Math.floor((100 * t.total.done) / t.total.total) : 0
@@ -323,18 +329,23 @@ function render(d) {
   </div>`)
 
   // 3. あなた待ち ＋ 今のタスク
-  const humanRows = human.map((x) =>
-    li(`<span class="tag k-${esc(x.kind)}">${esc(x.kind)}</span>${txt(x.text, x.full)}` +
-      (x.blocked ? '<span class="tag blocked">ブロック中</span>' : '') + `<span class="src mono id">${esc(x.src)}</span>`),
+  // 上位 TOP_HUMAN 件だけ出し、残りは隠して「ほか N 件を表示」で開く（全部並べると下の CI やコミットが画面の外に押し出される）
+  const TOP_HUMAN = 6
+  const humanRows = human.map(
+    (x, i) =>
+      `<li${i >= TOP_HUMAN ? ' class="extra"' : ''}><span class="tag k-${esc(x.kind)}">${esc(x.kind)}</span>${txt(x.text, x.full)}` +
+      (x.blocked ? '<span class="tag blocked">ブロック中</span>' : '') +
+      `<span class="src mono id">${esc(x.src)}</span></li>`,
   )
+  const moreBtn = human.length > TOP_HUMAN ? `<button type="button" class="more-btn" data-more="human-list">ほか ${human.length - TOP_HUMAN} 件を表示</button>` : ''
   const first = t?.openTasks[0]
   const rest = (t?.openTasks ?? []).slice(1, 5)
   html.push(`<div class="row two">
     <section class="card ${human.length ? 'you-card' : ''}"><h2>あなた待ち <span class="count">${human.length}</span></h2>
-      ${human.length ? `<ul class="list">${humanRows.join('')}</ul>` : '<div class="empty">なし</div>'}</section>
+      ${human.length ? `<ul class="list" id="human-list">${humanRows.join('')}</ul>${moreBtn}` : '<div class="empty">なし</div>'}</section>
     <section class="card"><h2>今のタスク</h2>
       ${first ? `<div class="now" title="${esc(first.text)}">${esc(short(first.text, { max: 60 }))}</div>
-      <div class="now-sub">${esc(short(first.section, { colon: false }))} · TODO.md:${first.line}</div>` : '<div class="empty">未完タスクなし</div>'}
+      <div class="now-sub">${first.section ? `${esc(short(first.section, { colon: false }))} · ` : ''}TODO.md:${first.line}</div>` : '<div class="empty">未完タスクなし</div>'}
       ${rest.length ? `<h3>この後</h3><ol class="next">${rest.map((r) => `<li title="${esc(r.text)}">${esc(short(r.text, { max: 40 }))}</li>`).join('')}</ol>` : ''}
     </section></div>`)
 
@@ -408,6 +419,16 @@ try {
   el.hidden = false
   el.textContent = `データを読めません（${e.message}）。先に node dashboard/update.mjs を実行してください`
 }
+// 「ほか N 件を表示」：隠していた行を開く。もう一度押すと閉じる
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-more]')
+  if (!btn) return
+  const list = document.getElementById(btn.dataset.more)
+  if (!list) return
+  if (!btn.dataset.label) btn.dataset.label = btn.textContent
+  const open = list.classList.toggle('open')
+  btn.textContent = open ? '閉じる' : btn.dataset.label
+})
 // 縮めた題名を押すと全文に切り替わる（マウスの無いスマートフォン向け）。もう一度押すと戻る
 document.addEventListener('click', (e) => {
   const el = e.target.closest('span.txt[title], ol.next li[title], .now[title]')

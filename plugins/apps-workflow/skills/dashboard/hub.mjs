@@ -243,7 +243,9 @@ function appCard(r) {
         .map((it) => `<li><span class="tag k-${esc(it.kind)}">${esc(it.kind)}</span><span class="txt" title="${esc(it.full)}">${esc(it.text)}</span><span class="src">${esc(it.src)}</span></li>`)
         .join('')}</ul>${rest > 0 ? `<a class="more" href="/${esc(r.name)}/">ほか ${rest} 件 →</a>` : ''}`
     : '<div class="sub">なし</div>'
-  return `<section class="app ${r.human ? 'you' : ''}">${head}
+  // 左端の赤い線は異常（CI 失敗・赤い注意）があるときだけ。あなた待ちは件数の数字の色で示す（どのアプリにもあるので線にすると常に赤くなる）
+  const alarm = r.ci[0] === 'bad' || r.bad > 0
+  return `<section class="app ${alarm ? 'alarm' : ''}">${head}
     <div class="stats">
       <div><div class="kl">進捗</div>${r.pct == null ? '<span class="s-na">–</span>' : `<b>${r.pct}%</b><div class="bar"><i style="width:${r.pct}%"></i></div><div class="sub">残り ${r.open} / ${r.total}</div>`}</div>
       <div><div class="kl">あなた待ち</div><b class="${r.human ? 'you-n' : ''}">${r.human}</b> <span class="sub">件</span></div>
@@ -252,7 +254,7 @@ function appCard(r) {
     </div>
     <div class="body">
       <div><div class="kl">今のタスク</div>${r.now ? `<div class="now txt" title="${esc(r.nowFull)}">${esc(r.now)}</div>` : '<div class="sub">未完タスクなし</div>'}</div>
-      <div><div class="kl">あなた待ち（優先度の高い ${TOP_HUMAN} 件）</div>${youList}</div>
+      <div><div class="kl">優先度の高い ${TOP_HUMAN} 件</div>${youList}</div>
     </div>
     ${r.error ? `<div class="sub s-bad">! ${esc(r.error)}</div>` : ''}
   </section>`
@@ -266,21 +268,23 @@ function hubPage(apps) {
 <title>開発ダッシュボード（全アプリ）</title>
 <style>
   :root { --bg:#f4f5f7; --card:#fff; --line:#e4e7ec; --track:#e9ecf1; --ink:#172033; --sub:#566074; --faint:#8b93a3; --link:#1f63b8;
-    --good:#1c7c4c; --warn:#93600a; --bad:#b93a2a; --you:#b8432a; --you-bg:#fcebe5; --tag:#eef1f5; --l3:#2a78d6; color-scheme: light dark; }
+    --good:#1c7c4c; --warn:#93600a; --bad:#b93a2a; --you:#6d3fc0; --you-bg:#efe8fb; --tag:#eef1f5; --l3:#2a78d6; color-scheme: light dark; }
   @media (prefers-color-scheme: dark) { :root { --bg:#11151d; --card:#181e29; --line:#262e3d; --track:#232b39; --ink:#e7ebf3; --sub:#a3acbe; --faint:#737d90;
-    --link:#8db6f2; --good:#6fd39a; --warn:#f0c050; --bad:#f28b74; --you:#f0906c; --you-bg:#3a2019; --tag:#242c3a; --l3:#3f88dd; } }
+    --link:#8db6f2; --good:#6fd39a; --warn:#f0c050; --bad:#f28b74; --you:#b99af0; --you-bg:#2a2140; --tag:#242c3a; --l3:#3f88dd; } }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,'Segoe UI','Hiragino Sans','Yu Gothic UI','Noto Sans JP',sans-serif; }
   .wrap { max-width:1180px; margin:0 auto; padding:16px; }
   header { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 14px; margin-bottom:12px; }
   h1 { font-size:20px; margin:0; } .meta { color:var(--faint); font-size:13px; }
   button { font:inherit; font-size:13px; padding:4px 12px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
-  button:disabled { opacity:.6; cursor:wait; } #all { margin-left:auto; } #howto { color:var(--link); background:none; border:0; padding:4px 2px; }
+  /* 「起動方法」と「全部更新」は右端にまとめる */
+  button:disabled { opacity:.6; cursor:wait; } #howto { color:var(--link); background:none; border:0; padding:4px 2px; }
+  .actions { margin-left:auto; display:flex; gap:12px; align-items:baseline; white-space:nowrap; }
   #hint { width:100%; font-size:13px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 14px; }
   #hint pre { margin:6px 0 0; padding:8px 10px; border-radius:6px; background:var(--tag); font-size:12px; white-space:pre-wrap; word-break:break-all; user-select:all; }
   /* アプリごとのカード */
   .app { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 16px; margin-bottom:12px; }
-  .app.you { box-shadow: inset 3px 0 var(--you); }
+  .app.alarm { box-shadow: inset 3px 0 var(--bad); }
   .head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
   .name { font-size:17px; font-weight:700; } .grow { flex:1; }
   .stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:10px 0; padding:10px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
@@ -302,7 +306,8 @@ function hubPage(apps) {
   .tag.k-判断 { background:var(--you-bg); color:var(--you); }
   .src { flex:none; font-size:12px; color:var(--faint); white-space:nowrap; }
   .more { display:inline-block; font-size:13px; margin-top:4px; }
-  .s-good{color:var(--good)} .s-bad{color:var(--bad)} .s-warn{color:var(--warn)} .s-run{color:var(--link)} .s-na{color:var(--faint)}
+  /* 色は異常にだけ。正常（✓）は灰色 */
+  .s-good{color:var(--faint)} .s-bad{color:var(--bad)} .s-warn{color:var(--warn)} .s-run{color:var(--link)} .s-na{color:var(--faint)}
   a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
   .empty { padding:24px; color:var(--faint); }
   @media (max-width: 860px) {
@@ -310,8 +315,8 @@ function hubPage(apps) {
     .stats { grid-template-columns:1fr 1fr; } .body { grid-template-columns:1fr; } .src { display:none; }
   }
 </style></head><body><div class="wrap">
-<header><h1>開発ダッシュボード</h1><span class="meta">${apps.length} アプリ · ${esc(ROOT)}</span>
-  <button id="howto" type="button">起動方法</button><button id="all" type="button">全部更新</button><div id="hint" hidden></div></header>
+<header><h1>開発ダッシュボード</h1><span class="meta" title="${esc(ROOT)}">${apps.length} アプリ</span>
+  <span class="actions"><button id="howto" type="button">起動方法</button><button id="all" type="button">全部更新</button></span><div id="hint" hidden></div></header>
 ${
   apps.length
     ? rows.map(appCard).join('')
