@@ -112,7 +112,6 @@ function ago(iso) {
   return `${Math.round(m / 1440)}日前`
 }
 
-/** 1 アプリ分の 1 行に使う要約を data.js から取る */
 /** 全角の括弧書き（…）を入れ子ごと取り除く */
 function dropParens(s) {
   let out = ''
@@ -145,16 +144,18 @@ function humanItems(app, d) {
   const items = []
   for (const b of d.beads?.human ?? []) {
     const full = String(b.title ?? '').replace(/^\[[^\]]+\]\s*/, '')
-    items.push({ app: app.name, kind: (b.labels ?? []).map((l) => KIND[l]).find(Boolean) ?? '確認', text: short(full), full, src: b.id })
+    items.push({ app: app.name, kind: (b.labels ?? []).map((l) => KIND[l]).find(Boolean) ?? '確認', text: short(full, 48), full, src: b.id })
   }
   for (const a of d.todo?.askItems ?? []) {
     const full = String(a.text ?? '').replace(/\s*完了条件：.*$/, '')
-    items.push({ app: app.name, kind: bracketTag(full) || '確認', text: short(full), full, src: `TODO.md:${a.line}` })
+    items.push({ app: app.name, kind: bracketTag(full) || '確認', text: short(full, 48), full, src: `TODO.md:${a.line}` })
   }
-  for (const h of d.specific?.human ?? []) items.push({ app: app.name, kind: h.kind ?? '判断', text: short(h.text), full: h.full ?? h.text, src: h.src ?? '' })
+  // 固有の human は update.mjs が既に短い文で返す前提（テンプレートの index.html と同じく縮めない）
+  for (const h of d.specific?.human ?? []) items.push({ app: app.name, kind: h.kind ?? '判断', text: h.text, full: h.full ?? h.text, src: h.src ?? '' })
   return items
 }
 
+/** 1 アプリ分の 1 行に使う要約を data.js から取る */
 function summarize(app) {
   const { value: d, error: readError } = readData(app)
   const s = state.get(app.name)
