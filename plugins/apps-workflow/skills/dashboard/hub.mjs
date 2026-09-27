@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // 開発ダッシュボードのハブ。複数リポジトリのダッシュボードを 1 つのプロセスでまとめて配信する。
 //
-//   node hub.mjs [--root ~/workspace/apps] [--port 8790] [--host 127.0.0.1] [--open]
+//   node hub.mjs [--root ~/workspace/apps] [--port 8790] [--host 127.0.0.1] [--interval 300] [--open]
 //
 // - <root>/*/dashboard/update.mjs があるリポジトリを自動で拾う（設定ファイルは無い）
 // - 各リポジトリのデータは、そのリポジトリ自身の update.mjs を子プロセスで実行して作る（リポジトリごとの固有指標がそのまま効く）。
 //   全リポジトリを並列に回すので、待ち時間はいちばん遅い 1 本ぶん
 // - http://<host>:<port>/            一覧（1 アプリ 1 枚のカード：進捗・あなた待ち・CI・作業ツリー・今のタスク）
 //   http://<host>:<port>/<app>/      そのリポジトリのダッシュボード（dashboard/index.html をそのまま配信）
-//   GET  /<app>/data.js              10 秒より古ければ作り直してから返す
+//   GET  /<app>/data.js              手元の data.js をすぐ返す。60 秒より古ければ裏で作り直す（待たせない）。--interval 秒ごとにも全部を裏で作り直す
 //   POST /<app>/update, /update-all  作り直す（画面の「更新」「全部更新」ボタン）
 // - 各リポジトリの `node dashboard/update.mjs --serve` はそのまま単独でも使える。ハブはその上に被せるだけ
 //
@@ -28,7 +28,10 @@ const flag = (k, def) => {
 const ROOT = path.resolve(flag('--root', path.join(os.homedir(), 'workspace', 'apps')))
 const PORT = Number(flag('--port', '8790'))
 const HOST = flag('--host', '127.0.0.1')
-const STALE_MS = 10_000 // これより古ければ、開くたびに作り直す（配信モードの update.mjs と同じ）
+// 作り直しは 1 アプリ 7〜8 秒かかる（大半は gh と bd の問い合わせ）。画面を開くたびに待たせないよう、
+// 開いたときは手元の data.js をすぐ返し、STALE_MS より古ければ裏で作り直す。加えて REFRESH_MS ごとに全アプリを裏で作り直す
+const STALE_MS = 60_000
+const REFRESH_MS = Number(flag('--interval', '300')) * 1000 // 既定 5 分。0 なら定期の作り直しをしない
 
 // ---------- リポジトリの発見 ----------
 
@@ -78,12 +81,11 @@ function regenerate(app) {
   return s.running
 }
 
-/** 古ければ作り直す。作り直し中なら終わるのを待つ */
-async function ensureFresh(app) {
+/** 古ければ裏で作り直しを始める（待たない）。作り直しの完了は、画面の 60 秒ごとの再読込か「更新」で反映される */
+function refreshInBackground(app) {
   const s = state.get(app.name)
-  if (s?.running) return s.running
-  if (!s || Date.now() - s.at > STALE_MS) return regenerate(app)
-  return s
+  if (s?.running) return
+  if (!s || Date.now() - s.at > STALE_MS) regenerate(app)
 }
 
 /** data.js（window.DASHBOARD_DATA = {...}）を読んで JSON にする。無ければ value=null、壊れていれば error に理由（握りつぶさず一覧に出す） */
@@ -376,8 +378,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, s.error ? 500 : 200, JSON.stringify({ ok: !s.error, error: s.error }), 'application/json')
     }
     if (rest === '/data.js') {
-      await ensureFresh(app)
       const p = path.join(app.dash, 'data.js')
+      // まだ一度も作っていないときだけ、できるのを待つ。あればすぐ返し、古ければ裏で作り直す
+      if (!fs.existsSync(p)) await regenerate(app)
+      else refreshInBackground(app)
       if (!fs.existsSync(p)) return send(res, 500, `window.DASHBOARD_DATA = null // ${state.get(app.name)?.error ?? '生成できず'}`, 'text/javascript')
       return send(res, 200, fs.readFileSync(p), 'text/javascript')
     }
@@ -408,4 +412,6 @@ server.listen(PORT, HOST, async () => {
   // 起動時に全部を並列で作り直しておく（一覧を開いたときに古い data.js を見せない）
   await Promise.all(apps.map(regenerate))
   console.log(`初回の生成が終わりました（${apps.filter((a) => !state.get(a.name)?.error).length}/${apps.length} 成功）`)
+  // 以後は REFRESH_MS ごとに全アプリを裏で作り直す（画面を開いたときに新しいデータがもうある状態にする）
+  if (REFRESH_MS > 0) setInterval(() => discover().forEach((a) => refreshInBackground(a)), REFRESH_MS)
 })
