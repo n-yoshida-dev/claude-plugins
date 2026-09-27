@@ -59,40 +59,35 @@ function regenerate(app) {
   const s = state.get(app.name) ?? { at: 0, error: null, running: null }
   state.set(app.name, s)
   if (s.running) return s.running
-  s.running = new Promise((resolve) => {
-    // spawn がその場で例外を投げても（ファイル記述子の枯渇など）拒否にせず、error に理由を残して resolve する。
-    // 拒否にすると裏の作り直しでは受け手が無く、プロセスごと落ちたり running が残って二度と作り直されなくなる
-    let child
+  // 失敗はすべて拒否にせず、error に理由を残して resolve する（裏の作り直しには受け手が無いため）
+  const done = (error) => {
+    s.at = Date.now()
+    s.error = error
+    if (error) console.error(`[${app.name}] ${error}`)
+    return s
+  }
+  const p = new Promise((resolve) => {
     try {
-      child = spawn(process.execPath, [path.join(app.dash, 'update.mjs'), '--quiet'], {
+      const child = spawn(process.execPath, [path.join(app.dash, 'update.mjs'), '--quiet'], {
         cwd: app.dir,
         stdio: ['ignore', 'ignore', 'pipe'],
         timeout: 180_000,
       })
+      let stderr = ''
+      // 起動に失敗すると stderr が null のことがある（そのときは 'error' イベントで知らされる）
+      child.stderr?.on('data', (c) => (stderr += c))
+      child.on('close', (code) => resolve(done(code === 0 ? null : `update.mjs が終了コード ${code}（${stderr.trim().split('\n').at(-1) ?? ''}）`)))
+      child.on('error', (e) => resolve(done(`update.mjs を起動できない（${e.message}）`)))
     } catch (e) {
-      s.at = Date.now()
-      s.error = `update.mjs を起動できない（${e.message}）`
-      s.running = null
-      console.error(`[${app.name}] ${s.error}`)
-      return resolve(s)
+      resolve(done(`update.mjs を起動できない（${e.message}）`))
     }
-    let stderr = ''
-    child.stderr.on('data', (c) => (stderr += c))
-    child.on('close', (code) => {
-      s.at = Date.now()
-      s.error = code === 0 ? null : `update.mjs が終了コード ${code}（${stderr.trim().split('\n').at(-1) ?? ''}）`
-      if (s.error) console.error(`[${app.name}] ${s.error}`)
-      s.running = null
-      resolve(s)
-    })
-    child.on('error', (e) => {
-      s.at = Date.now()
-      s.error = `update.mjs を起動できない（${e.message}）`
-      s.running = null
-      resolve(s)
-    })
   })
-  return s.running
+  s.running = p
+  // 「作り直し中」の印は、どの経路で終わってもここ 1 か所で外す（Promise を作る前に外すと、あとの代入で印が残ってしまう）
+  p.finally(() => {
+    if (s.running === p) s.running = null
+  })
+  return p
 }
 
 /** 古ければ裏で作り直しを始める（待たない）。作り直しの完了は、画面の 60 秒ごとの再読込か「更新」で反映される */
