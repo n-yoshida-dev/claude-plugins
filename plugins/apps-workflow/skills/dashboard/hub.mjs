@@ -6,7 +6,7 @@
 // - <root>/*/dashboard/update.mjs があるリポジトリを自動で拾う（設定ファイルは無い）
 // - 各リポジトリのデータは、そのリポジトリ自身の update.mjs を子プロセスで実行して作る（リポジトリごとの固有指標がそのまま効く）。
 //   全リポジトリを並列に回すので、待ち時間はいちばん遅い 1 本ぶん
-// - http://<host>:<port>/            一覧（進捗・あなた待ち・CI・作業ツリー を 1 行ずつ）
+// - http://<host>:<port>/            一覧（1 アプリ 1 枚のカード：進捗・あなた待ち・CI・作業ツリー・今のタスク）
 //   http://<host>:<port>/<app>/      そのリポジトリのダッシュボード（dashboard/index.html をそのまま配信）
 //   GET  /<app>/data.js              10 秒より古ければ作り直してから返す
 //   POST /<app>/update, /update-all  作り直す（画面の「更新」「全部更新」ボタン）
@@ -135,27 +135,40 @@ function short(s, max = 60) {
   return t.length > max ? t.slice(0, max - 1) + '…' : t
 }
 
+/** 全文を見せるときの軽い整形：先頭の【…】・記法・括弧書きだけを落とし、空白を詰める。文や「：」では切らない */
+function plain(s) {
+  return dropParens(String(s ?? '').replace(/^【[^】]+】\s*/, '').replace(/`|\*\*/g, ''))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** 先頭の【…】を種類の札にする（「ユーザー確認」→「確認」） */
 const bracketTag = (s) => (String(s).match(/^【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '')
 const KIND = { decision: '判断', review: '確認', action: '作業' }
 
-/** そのアプリの「あなた待ち」（Beads の human、TODO の確認待ち、固有の human）。各ダッシュボードと同じ数え方 */
-function humanItems(app, d) {
+/**
+ * そのアプリの「あなた待ち」（Beads の human、TODO の確認待ち、固有の human）。各ダッシュボードと同じ数え方。
+ * 優先度の高い順に並べる：Beads は priority（0 が最優先）、固有の human は 2 相当、TODO の確認待ちは優先度を持たないので最後
+ */
+function humanItems(d) {
   const items = []
   for (const b of d.beads?.human ?? []) {
     const full = String(b.title ?? '').replace(/^\[[^\]]+\]\s*/, '')
-    items.push({ app: app.name, kind: (b.labels ?? []).map((l) => KIND[l]).find(Boolean) ?? '確認', text: short(full, 48), full, src: b.id })
-  }
-  for (const a of d.todo?.askItems ?? []) {
-    const full = String(a.text ?? '').replace(/\s*完了条件：.*$/, '')
-    items.push({ app: app.name, kind: bracketTag(full) || '確認', text: short(full, 48), full, src: `TODO.md:${a.line}` })
+    items.push({ kind: (b.labels ?? []).map((l) => KIND[l]).find(Boolean) ?? '確認', text: short(full, 80), full, src: b.id, pri: Number.isFinite(Number(b.priority)) ? Number(b.priority) : 4 })
   }
   // 固有の human は update.mjs が既に短い文で返す前提（テンプレートの index.html と同じく縮めない）
-  for (const h of d.specific?.human ?? []) items.push({ app: app.name, kind: h.kind ?? '判断', text: h.text, full: h.full ?? h.text, src: h.src ?? '' })
-  return items
+  for (const h of d.specific?.human ?? []) items.push({ kind: h.kind ?? '判断', text: h.text, full: h.full ?? h.text, src: h.src ?? '', pri: 2 })
+  for (const a of d.todo?.askItems ?? []) {
+    const full = String(a.text ?? '').replace(/\s*完了条件：.*$/, '')
+    items.push({ kind: bracketTag(full) || '確認', text: short(full, 80), full, src: `TODO.md:${a.line}`, pri: 5 })
+  }
+  // sort は安定なので、同じ優先度の中では元の並び（Beads の並び・TODO の上から順）が保たれる
+  return items.sort((a, b) => a.pri - b.pri)
 }
 
-/** 1 アプリ分の 1 行に使う要約を data.js から取る */
+const TOP_HUMAN = 3 // 一覧の各アプリの枠に出す「あなた待ち」の件数。残りはそのアプリのダッシュボードで見る
+
+/** 1 アプリ分のカードに使う要約を data.js から取る */
 function summarize(app) {
   const { value: d, error: readError } = readData(app)
   const s = state.get(app.name)
@@ -179,7 +192,7 @@ function summarize(app) {
   const tree = dirty ? ['warn', `未コミット ${dirty}`] : d.git?.ahead ? ['warn', `未push ${d.git.ahead}`] : ['good', 'クリーン']
   const bad = (d.alerts ?? []).filter((a) => a.level === 'error').length
   const first = t?.openTasks?.[0]?.text ?? ''
-  const humanList = humanItems(app, d)
+  const humanList = humanItems(d)
   return {
     name: app.name,
     ok: true,
@@ -192,46 +205,44 @@ function summarize(app) {
     tree,
     branch: d.git?.branch ?? '',
     bad,
-    // 一覧用に縮める：先頭の【…】・記法・括弧書きを落とす（各ダッシュボードの short() と同じ考え方）
-    now: short(first),
+    // 今のタスクは全文を見せる。short() は「：」「。」の後ろを落とすので使わず、記法と括弧書きだけを落とす
+    now: plain(first),
     nowFull: first,
     humanList,
     generatedAt: d.generatedAt,
   }
 }
 
-/** 全アプリの「あなた待ち」を表の上に 1 行ずつ。無ければ出さない */
-function youBox(rows) {
-  const groups = rows.filter((r) => r.humanList?.length)
-  const total = groups.reduce((n, r) => n + r.humanList.length, 0)
-  if (!total) return ''
-  // アプリごとにまとめる（毎行にアプリ名を付けると読みにくい）
-  return `<section class="you-box"><h2>あなた待ち<b>${total}</b> <span class="src">判断・確認・作業。押すと全文</span></h2>${groups
-    .map(
-      (r) =>
-        `<h3><a href="/${esc(r.name)}/">${esc(r.name)}</a> <span class="src">${r.humanList.length} 件</span></h3><ul class="list">${r.humanList
-          .map((it) => `<li><span class="tag k-${esc(it.kind)}">${esc(it.kind)}</span><span class="txt" title="${esc(it.full)}">${esc(it.text)}</span><span class="src">${esc(it.src)}</span></li>`)
-          .join('')}</ul>`,
-    )
-    .join('')}</section>`
+/** 1 アプリ分のカード。上段に名前と状態、下段に「今のタスク」（全文）と「あなた待ち」（優先度の高い TOP_HUMAN 件） */
+function appCard(r) {
+  const head = `<div class="head"><a class="name" href="/${esc(r.name)}/">${esc(r.name)}</a>${r.ok ? `<span class="mono sub">${esc(r.branch)}</span>` : ''}
+    <span class="grow"></span><span class="sub">${r.ok ? ago(r.generatedAt) : ''}</span><button type="button" data-app="${esc(r.name)}">更新</button></div>`
+  if (!r.ok) return `<section class="app">${head}<div class="s-bad">! ${esc(r.error)}</div></section>`
+  const top = r.humanList.slice(0, TOP_HUMAN)
+  const rest = r.humanList.length - top.length
+  const youList = top.length
+    ? `<ul class="list">${top
+        .map((it) => `<li><span class="tag k-${esc(it.kind)}">${esc(it.kind)}</span><span class="txt" title="${esc(it.full)}">${esc(it.text)}</span><span class="src">${esc(it.src)}</span></li>`)
+        .join('')}</ul>${rest > 0 ? `<a class="more" href="/${esc(r.name)}/">ほか ${rest} 件 →</a>` : ''}`
+    : '<div class="sub">なし</div>'
+  return `<section class="app ${r.human ? 'you' : ''}">${head}
+    <div class="stats">
+      <div><div class="kl">進捗</div>${r.pct == null ? '<span class="s-na">–</span>' : `<b>${r.pct}%</b><div class="bar"><i style="width:${r.pct}%"></i></div><div class="sub">残り ${r.open} / ${r.total}</div>`}</div>
+      <div><div class="kl">あなた待ち</div><b class="${r.human ? 'you-n' : ''}">${r.human}</b> <span class="sub">件</span></div>
+      <div><div class="kl">CI（main）</div>${st(...r.ci)}</div>
+      <div><div class="kl">作業ツリー</div>${st(...r.tree)}${r.bad ? `<div class="sub s-bad">✕ 異常 ${r.bad}</div>` : ''}</div>
+    </div>
+    <div class="body">
+      <div><div class="kl">今のタスク</div>${r.now ? `<div class="now txt" title="${esc(r.nowFull)}">${esc(r.now)}</div>` : '<div class="sub">未完タスクなし</div>'}</div>
+      <div><div class="kl">あなた待ち（優先度の高い ${TOP_HUMAN} 件）</div>${youList}</div>
+    </div>
+    ${r.error ? `<div class="sub s-bad">! ${esc(r.error)}</div>` : ''}
+  </section>`
 }
 
 function hubPage(apps) {
   const rows = apps.map(summarize)
   const startCmd = `node ${process.argv[1]}${HOST !== '127.0.0.1' ? ` --host ${HOST}` : ''}${PORT !== 8790 ? ` --port ${PORT}` : ''} --open`
-  const tr = (r) =>
-    r.ok
-      ? `<tr class="${r.human ? 'you' : ''}">
-      <td><a href="/${esc(r.name)}/"><b>${esc(r.name)}</b></a><div class="sub mono">${esc(r.branch)}</div></td>
-      <td class="num">${r.pct == null ? '<span class="s-na">–</span>' : `<b>${r.pct}%</b><div class="bar"><i style="width:${r.pct}%"></i></div><div class="sub">残り ${r.open} / ${r.total}</div>`}</td>
-      <td class="num ${r.human ? 'you-n' : ''}"><b>${r.human}</b><div class="sub">件</div></td>
-      <td>${st(...r.ci)}</td>
-      <td>${st(...r.tree)}${r.bad ? `<div class="sub s-bad">✕ 異常 ${r.bad}</div>` : ''}</td>
-      <td><span class="now txt" title="${esc(r.nowFull)}">${esc(r.now)}</span></td>
-      <td class="sub">${ago(r.generatedAt)}${r.error ? `<div class="s-bad">! ${esc(r.error)}</div>` : ''}</td>
-      <td><button type="button" data-app="${esc(r.name)}">更新</button></td>
-    </tr>`
-      : `<tr><td><b>${esc(r.name)}</b></td><td colspan="6" class="s-bad">! ${esc(r.error)}</td><td><button type="button" data-app="${esc(r.name)}">更新</button></td></tr>`
   return `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>開発ダッシュボード（全アプリ）</title>
@@ -249,43 +260,43 @@ function hubPage(apps) {
   button:disabled { opacity:.6; cursor:wait; } #all { margin-left:auto; } #howto { color:var(--link); background:none; border:0; padding:4px 2px; }
   #hint { width:100%; font-size:13px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 14px; }
   #hint pre { margin:6px 0 0; padding:8px 10px; border-radius:6px; background:var(--tag); font-size:12px; white-space:pre-wrap; word-break:break-all; user-select:all; }
-  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  th { text-align:left; font-size:12px; color:var(--sub); font-weight:500; padding:8px 10px; border-bottom:1px solid var(--line); }
-  td { padding:10px; border-top:1px solid var(--line); vertical-align:top; }
-  tr.you td:first-child { box-shadow: inset 3px 0 var(--you); }
-  td.num b { font-size:18px; font-variant-numeric:tabular-nums; } td.you-n b { color:var(--you); }
+  /* アプリごとのカード */
+  .app { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 16px; margin-bottom:12px; }
+  .app.you { box-shadow: inset 3px 0 var(--you); }
+  .head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .name { font-size:17px; font-weight:700; } .grow { flex:1; }
+  .stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:10px 0; padding:10px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .stats b { font-size:20px; font-variant-numeric:tabular-nums; } .you-n { color:var(--you); }
+  .body { display:grid; grid-template-columns:2fr 3fr; gap:16px; }
+  /* 空白を含まない長い文字列（パス・URL）でも枠からはみ出さないように */
+  .body > div, .stats > div { min-width:0; } .now, ul.list .txt { overflow-wrap:anywhere; }
+  .kl { font-size:12px; color:var(--sub); margin-bottom:2px; }
   .sub { font-size:12px; color:var(--faint); } .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; }
   .bar { height:5px; background:var(--track); border-radius:3px; overflow:hidden; margin:3px 0; width:110px; } .bar i { display:block; height:100%; background:var(--l3); }
-  .now { display:block; max-width:260px; font-size:14px; }
-  /* 縮めた題名。1 行で切り、全文はマウスを載せるか押すと出る */
-  .txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
-  .txt.full { white-space:normal; overflow:visible; }
-  /* あなた待ち（全アプリ） */
-  .you-box { background:var(--card); border:1px solid var(--you); border-radius:10px; padding:12px 16px; margin-bottom:12px; }
-  .you-box h2 { font-size:14px; margin:0 0 6px; color:var(--sub); font-weight:600; } .you-box h2 b { font-size:18px; color:var(--you); margin-left:6px; }
-  .you-box h3 { font-size:13px; margin:12px 0 2px; font-weight:600; } .you-box h3:first-of-type { margin-top:4px; }
+  /* 今のタスクは切らずに折り返して全文を見せる */
+  .now { font-size:15px; font-weight:600; line-height:1.45; }
+  /* あなた待ちの題名。折り返して見せ、押すと括弧書きまで含めた全文に切り替わる */
+  .txt { cursor:pointer; }
   ul.list { list-style:none; margin:0; padding:0; }
-  ul.list li { display:flex; align-items:center; gap:10px; padding:6px 0; border-top:1px solid var(--line); min-width:0; }
+  ul.list li { display:flex; align-items:baseline; gap:8px; padding:4px 0; border-top:1px solid var(--line); min-width:0; font-size:14px; }
   ul.list li:first-child { border-top:0; } ul.list .txt { flex:1; min-width:0; }
   .tag { flex:none; font-size:11px; line-height:20px; padding:0 8px; border-radius:4px; background:var(--tag); color:var(--sub); white-space:nowrap; }
-  .tag.app { color:var(--link); } .tag.k-判断 { background:var(--you-bg); color:var(--you); }
+  .tag.k-判断 { background:var(--you-bg); color:var(--you); }
   .src { flex:none; font-size:12px; color:var(--faint); white-space:nowrap; }
+  .more { display:inline-block; font-size:13px; margin-top:4px; }
   .s-good{color:var(--good)} .s-bad{color:var(--bad)} .s-warn{color:var(--warn)} .s-run{color:var(--link)} .s-na{color:var(--faint)}
   a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
   .empty { padding:24px; color:var(--faint); }
   @media (max-width: 860px) {
-    table, thead, tbody, tr, td { display:block; } thead { display:none; }
-    tr { border-top:1px solid var(--line); padding:8px 0; } td { border:0; padding:4px 10px; } .now { max-width:none; }
-    /* 狭い幅では題名を 2 行まで見せ、付箋 ID は隠す */
-    .txt { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; } .txt.full { display:block; -webkit-line-clamp:unset; } .src { display:none; }
+    /* スマートフォン幅：状態は 2 列、今のタスクとあなた待ちは縦に並べ、付箋 ID は隠す */
+    .stats { grid-template-columns:1fr 1fr; } .body { grid-template-columns:1fr; } .src { display:none; }
   }
 </style></head><body><div class="wrap">
 <header><h1>開発ダッシュボード</h1><span class="meta">${apps.length} アプリ · ${esc(ROOT)}</span>
   <button id="howto" type="button">起動方法</button><button id="all" type="button">全部更新</button><div id="hint" hidden></div></header>
 ${
   apps.length
-    ? `${youBox(rows)}<table><thead><tr><th>アプリ</th><th>進捗</th><th>あなた待ち</th><th>CI（main）</th><th>作業ツリー</th><th>今のタスク</th><th>更新</th><th></th></tr></thead>
-<tbody>${rows.map(tr).join('')}</tbody></table>`
+    ? rows.map(appCard).join('')
     : `<div class="empty">${esc(ROOT)} の直下に dashboard/update.mjs と dashboard/index.html を持つリポジトリがありません。各リポジトリで /apps-workflow:dashboard を呼んで作ってください。</div>`
 }
 </div>
@@ -294,7 +305,7 @@ const startCmd = ${JSON.stringify(startCmd)}
 const hint = document.getElementById('hint')
 document.getElementById('howto').addEventListener('click', () => {
   if (!hint.hidden) { hint.hidden = true; return }
-  hint.innerHTML = '<div>ターミナルで次を実行すると、このページが開きます（起動したまま置いておく。閉じたら再実行）。各アプリの行の「更新」でそのアプリだけ、「全部更新」で全部を作り直します。</div><pre>' + startCmd.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</pre>'
+  hint.innerHTML = '<div>ターミナルで次を実行すると、このページが開きます（起動したまま置いておく。閉じたら再実行）。各アプリのカードの「更新」でそのアプリだけ、「全部更新」で全部を作り直します。</div><pre>' + startCmd.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</pre>'
   hint.hidden = false
 })
 async function post(url, btn) {
