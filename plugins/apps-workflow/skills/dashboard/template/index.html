@@ -13,7 +13,8 @@
     --good: #1c7c4c; --good-bg: #e2f2e9;
     --warn: #93600a; --warn-bg: #fdf1d6;
     --bad: #b93a2a; --bad-bg: #fbe3dd;
-    --you: #b8432a; --you-bg: #fcebe5;
+    /* あなた待ちの強調色。失敗の赤（--bad）と見分けがつくよう紫系にする */
+    --you: #6d3fc0; --you-bg: #efe8fb;
     --tag: #eef1f5;
     /* 帯の段階色（薄い → 濃い）。プロジェクトに色の決まりがあれば、その値に差し替える */
     --l1: #86b6ef; --l2: #5598e7; --l3: #2a78d6; --l4: #1c5cab; --l5: #104281;
@@ -27,7 +28,7 @@
       --good: #6fd39a; --good-bg: #16301f;
       --warn: #f0c050; --warn-bg: #36290e;
       --bad: #f28b74; --bad-bg: #3a1d17;
-      --you: #f0906c; --you-bg: #3a2019;
+      --you: #b99af0; --you-bg: #2a2140;
       --tag: #242c3a;
       --l1: #9ec5f4; --l2: #6aa6ec; --l3: #3f88dd; --l4: #2d6fc0; --l5: #1f579c;
     }
@@ -292,15 +293,19 @@ function render(d) {
     ...d.beads.human.map((b) => {
       const title = b.title.replace(/^\[[^\]]+\]\s*/, '')
       const kind = b.labels.map((l) => KIND[l]).find(Boolean) ?? '確認'
-      return { kind, text: short(title), full: title, src: b.id, blocked: b.blockedBy.length > 0 }
+      const pri = Number.isFinite(Number(b.priority)) ? Number(b.priority) : 4
+      return { kind, text: short(title), full: title, src: b.id, blocked: b.blockedBy.length > 0, pri }
     }),
     ...(t?.askItems ?? []).map((a) => {
       const full = a.text.replace(/\s*完了条件：.*$/, '')
-      return { kind: bracketTag(full) || '確認', text: short(full), full, src: 'TODO', blocked: false }
+      return { kind: bracketTag(full) || '確認', text: short(full), full, src: 'TODO', blocked: false, pri: 5 }
     }),
   ]
   // プロジェクト固有の「人が決めるもの」（update.mjs の readProjectSpecific が返す human）
-  for (const it of x?.human ?? []) human.push({ kind: it.kind ?? '判断', text: it.text, full: it.full ?? it.text, src: it.src ?? '', blocked: false })
+  for (const it of x?.human ?? []) human.push({ kind: it.kind ?? '判断', text: it.text, full: it.full ?? it.text, src: it.src ?? '', blocked: false, pri: 2 })
+  // 優先度の高い順に並べる（ハブと同じ）：Beads は priority（0 が最優先）、固有の human は P2 相当、TODO の確認待ちは最後。
+  // sort は安定なので、同じ優先度の中では元の並びが保たれる
+  human.sort((a, b) => a.pri - b.pri)
 
   // 2. 数字のタイル
   const pct = t && t.total.total ? Math.floor((100 * t.total.done) / t.total.total) : 0

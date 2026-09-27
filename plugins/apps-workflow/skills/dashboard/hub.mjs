@@ -268,9 +268,9 @@ function hubPage(apps) {
 <title>開発ダッシュボード（全アプリ）</title>
 <style>
   :root { --bg:#f4f5f7; --card:#fff; --line:#e4e7ec; --track:#e9ecf1; --ink:#172033; --sub:#566074; --faint:#8b93a3; --link:#1f63b8;
-    --good:#1c7c4c; --warn:#93600a; --bad:#b93a2a; --you:#b8432a; --you-bg:#fcebe5; --tag:#eef1f5; --l3:#2a78d6; color-scheme: light dark; }
+    --good:#1c7c4c; --warn:#93600a; --bad:#b93a2a; --you:#6d3fc0; --you-bg:#efe8fb; --tag:#eef1f5; --l3:#2a78d6; color-scheme: light dark; }
   @media (prefers-color-scheme: dark) { :root { --bg:#11151d; --card:#181e29; --line:#262e3d; --track:#232b39; --ink:#e7ebf3; --sub:#a3acbe; --faint:#737d90;
-    --link:#8db6f2; --good:#6fd39a; --warn:#f0c050; --bad:#f28b74; --you:#f0906c; --you-bg:#3a2019; --tag:#242c3a; --l3:#3f88dd; } }
+    --link:#8db6f2; --good:#6fd39a; --warn:#f0c050; --bad:#f28b74; --you:#b99af0; --you-bg:#2a2140; --tag:#242c3a; --l3:#3f88dd; } }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,'Segoe UI','Hiragino Sans','Yu Gothic UI','Noto Sans JP',sans-serif; }
   .wrap { max-width:1180px; margin:0 auto; padding:16px; }
