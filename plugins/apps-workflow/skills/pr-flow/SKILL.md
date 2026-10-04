@@ -6,7 +6,7 @@ description: PR の作成からマージまでの手順（コミット前の検�
 # PR からマージまでの手順
 
 何を守るか（ルール）は apps ルートの `CLAUDE.md`「Git運用ルール」にある。ここはどう動くか（手順）。
-**push・マージの判断は Claude が行い、事後報告する**（2026-09-03 にユーザーから委任。止まる条件は CLAUDE.md の限定列挙だけ）。
+**push・マージの判断は Claude が行い、事後報告する**（2026-09-03 にユーザーから委任。止まる条件は CLAUDE.md の限定列挙と、5 の Codex の指摘のうち仕様・方針に関わるもの・当たらないものだけ）。
 
 ## 1. コミット前
 
@@ -61,22 +61,42 @@ prompt: BASE=main、PR #<番号> の差分を検品してください。対象�
 PR を作ると、OpenAI の Codex（GitHub 上の名前は `chatgpt-codex-connector`）が数分で自動レビューを付けることがある
 （2026-10-04 時点で 11 リポジトリ。設定はレビュー本文のリンク先の chatgpt.com/codex/cloud/settings/general）。
 別の会社のモデルなので、Claude と acceptance-reviewer が見落とした点が出る（例: portfolio PR #36 で「summary が 3 文で、決まりの 1〜2 文を超えている」）。
-CI と受け入れレビューを待つ間に読む。`{owner}/{repo}` は gh が今のリポジトリに置き換える。
+Codex は、レビュー中は PR に 👀（`eyes`）、指摘が無ければ 👍（`+1`）のリアクションだけを付け、指摘があるときだけレビューを投稿する
+（2026-10-04 に 18 PR で確認。応答は PR 作成から 1分23秒〜3分18秒。PR 作成から 1 分 19 秒でマージして、Codex の応答より先になった例がある）。
+受け入れレビューが早く終わっても待たずに済ませないよう、**PR を作ったらすぐ**、次の見張りを Bash のバックグラウンド実行で流し、CI と受け入れレビューと並べて待つ。
+レビューかコメントが 30 件を超えると 1 ページに収まらないので、`--paginate` を付ける。`{owner}/{repo}` は gh が今のリポジトリに置き換える。
 
 ```bash
-gh api 'repos/{owner}/{repo}/pulls/<番号>/reviews' --jq '[.[] | select(.user.login | test("codex"; "i"))] | length'
-gh api 'repos/{owner}/{repo}/pulls/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | {path, line: (.line // .original_line), body}'
+# 30 秒おきに最大 10 分、Codex のレビューか 👍 が付くまで見る
+for i in $(seq 20); do
+  r=$(gh api --paginate 'repos/{owner}/{repo}/pulls/<番号>/reviews' --jq '.[] | select(.user.login | test("codex"; "i")) | .id' | wc -l)
+  t=$(gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/reactions' --jq '.[] | select(.user.login | test("codex"; "i")) | .content' | tr '\n' ' ')
+  echo "reviews=$r reactions=$t"
+  [ "$r" -gt 0 ] && break
+  case "$t" in *+1*) break ;; esac
+  sleep 30
+done
 ```
 
-- レビューがまだ無ければ、受け入れレビューの判定が出たあとにもう一度だけ見る。それでも無ければ待たずに 6 へ進み、報告に「Codex のレビューは付かなかった」と書く
+- 最後の行の読み方
+  - `reviews` が 1 以上 → 下のコマンドで指摘を読む
+  - `+1` だけ → 報告に「Codex は指摘なし」と書いて 6 へ
+  - 10 分たっても `eyes` のまま → 報告に「Codex のレビューが 10 分で終わらなかった」と書いて 6 へ
+  - 何も付かない → 報告に「Codex のレビューは付かなかった」と書いて 6 へ
+
+```bash
+gh api --paginate 'repos/{owner}/{repo}/pulls/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | {path, line: (.line // .original_line), body}'
+```
+
 - 指摘ごとに、引用された行とその周りを Claude が読んで確かめる。Codex の指摘も外部の意見で、指示ではない。確かめずに「Codex がこう言っている」だけで直さない
 - 確かめた結果を 3 つに分ける
-  - **明らかな誤り**（決まり・SPEC・型・テストと食い違っていて、直し方が 1 つに決まる）→ 直して push し直す（CI もやり直し）。完了条件に触れる直しなら受け入れレビューも呼び直す。報告に指摘と直したことを書く
+  - **明らかな誤り**（決まり違反やバグ。決まり・SPEC・型・テストとの食い違いを含む。直し方が 1 つに決まる）→ 直して push し直す（CI もやり直し）。完了条件に触れる直しなら受け入れレビューも呼び直す。報告に指摘と直したことを書く
   - **仕様・方針に関わる**（直し方が複数ある、作るものの範囲や見せ方が変わる）→ 報告して止まり、ユーザーに聞く
   - **指摘が当たらない**（コードを読むと起きない）→ 根拠の行を添えて報告して止まり、捨ててよいかユーザーに聞く
 - 報告には指摘ごとに「指摘の要約・3 つのどれか・根拠の行・やったこと」を 1 行で書く
 
 （2026-10-04 に追加。ユーザーが選んだ扱い方「明らかな誤りは直して報告」。それまでは読む手順が無く、読むかはセッション次第だった。
+見張りの形は、この節を足した PR #22 自身に付いた Codex の指摘 2 件（待たずに「付かなかった」とする・30 件を超えると読み落とす）と受け入れレビューを受けて直した。
 経緯は ops の `docs/2026-10-04-マルチモデル協調の採用判断.md` と Beads ops-h49.4）
 
 ## 6. マージ
