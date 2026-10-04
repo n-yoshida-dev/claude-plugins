@@ -1,12 +1,12 @@
 ---
 name: pr-flow
-description: PR の作成からマージまでの手順（コミット前の検査、PR 本文の完了条件と証拠、CI の待ち方、acceptance-reviewer の呼び方、マージ、ブランチの後始末、ユーザーに頼むときの URL の取り方）。apps 配下のアプリで PR を作る・CI を待つ・マージするときに必ず呼ぶ。
+description: PR の作成からマージまでの手順（コミット前の検査、PR 本文の完了条件と証拠、CI の待ち方、acceptance-reviewer の呼び方、Codex のクラウドレビューの指摘の扱い、マージ、ブランチの後始末、ユーザーに頼むときの URL の取り方）。apps 配下のアプリで PR を作る・CI を待つ・マージするときに必ず呼ぶ。
 ---
 
 # PR からマージまでの手順
 
 何を守るか（ルール）は apps ルートの `CLAUDE.md`「Git運用ルール」にある。ここはどう動くか（手順）。
-**push・マージの判断は Claude が行い、事後報告する**（2026-09-03 にユーザーから委任。止まる条件は CLAUDE.md の限定列挙だけ）。
+**push・マージの判断は Claude が行い、事後報告する**（2026-09-03 にユーザーから委任。止まる条件は CLAUDE.md の限定列挙と、5 の Codex の指摘のうち仕様・方針に関わるもの・当たらないものだけ）。
 
 ## 1. コミット前
 
@@ -42,6 +42,8 @@ gh run watch "$RUN" --exit-status
 gh pr checks <番号> --json state --jq 'map(.state) | unique'   # FAILURE / PENDING が無いこと。条件付きジョブの SKIPPED は可
 ```
 
+PR を作ったこの時点で、5 の Codex の見張りもバックグラウンドで流しておく（CI・受け入れレビューと並べて待つため）。
+
 ## 4. 待つ間に受け入れレビューを呼ぶ
 
 Agent ツールで `apps-workflow:acceptance-reviewer` を呼ぶ。読み取り専用の評価役で、差分を完了条件・SPEC.md・「守ること」に照らして判定だけ返す
@@ -56,15 +58,63 @@ prompt: BASE=main、PR #<番号> の差分を検品してください。対象�
 - 「ユーザー判断が要る」→ 報告して止まる
 - 「マージ可」→ 5 へ
 
-## 5. マージ
+## 5. Codex のクラウドレビューの指摘を読む
 
-CI が通り、レビュー判定が「マージ可」なら `gh pr merge <番号> --squash` を実行し、PR の URL を添えて事後報告する。
+PR を作ると、OpenAI の Codex（GitHub 上の名前は `chatgpt-codex-connector`）が数分で自動レビューを付けることがある
+（2026-10-04 時点で 11 リポジトリ。設定はレビュー本文のリンク先の chatgpt.com/codex/cloud/settings/general）。
+別の会社のモデルなので、Claude と acceptance-reviewer が見落とした点が出る（例: portfolio PR #36 で「summary が 3 文で、決まりの 1〜2 文を超えている」）。
+Codex は、レビュー中は PR に 👀（`eyes`）、指摘が無ければ 👍（`+1`）のリアクションだけを付け、指摘があるときだけレビューを投稿する
+（2026-10-04 に 18 PR で確認。応答は PR 作成から 1分23秒〜3分18秒。PR 作成から 1 分 19 秒でマージして、Codex の応答より先になった例がある）。
+受け入れレビューが早く終わっても待たずに済ませないよう、**PR を作ったらすぐ**、次の見張りを Bash のバックグラウンド実行で流し、CI と受け入れレビューと並べて待つ。
+レビューかコメントが 30 件を超えると 1 ページに収まらないので、`--paginate` を付ける。`{owner}/{repo}` は gh が今のリポジトリに置き換える。
+
+```bash
+# 30 秒おきに最大 10 分、Codex のレビュー・PR へのコメント・👍 のどれかが付くまで見る
+for i in $(seq 20); do
+  r=$(gh api --paginate 'repos/{owner}/{repo}/pulls/<番号>/reviews' --jq '.[] | select(.user.login | test("codex"; "i")) | .id' | wc -l)
+  c=$(gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | .id' | wc -l)
+  t=$(gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/reactions' --jq '.[] | select(.user.login | test("codex"; "i")) | .content' | tr '\n' ' ')
+  echo "reviews=$r comments=$c reactions=$t"
+  if [ "$r" -gt 0 ] || [ "$c" -gt 0 ]; then break; fi
+  case "$t" in *+1*) break ;; esac
+  sleep 30
+done
+```
+
+- 最後の行の読み方
+  - `reviews` が 1 以上 → 下の 1 本目のコマンドで指摘を読む（指摘は行ごとのコメントに入り、レビューの本文は決まり文句）
+  - `comments` が 1 以上 → 下の 2 本目で中身を読む。「You have reached your Codex usage limits」なら、報告に「Codex の利用上限でレビューされなかった」と書いて 6 へ
+    （2026-09-05 に life-plan-simulator #41・#42 で起きた）。それ以外なら指摘として扱う（2026-04 までの古い形式）
+  - `+1` だけ → 報告に「Codex は指摘なし」と書いて 6 へ
+  - 10 分たっても `eyes` のまま → 報告に「Codex のレビューが 10 分で終わらなかった」と書いて 6 へ
+  - 何も付かない → 報告に「Codex のレビューは付かなかった」と書いて 6 へ
+
+```bash
+gh api --paginate 'repos/{owner}/{repo}/pulls/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | {path, line: (.line // .original_line), body}'
+gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | .body'
+```
+
+- 指摘ごとに、引用された行とその周りを Claude が読んで確かめる。Codex の指摘も外部の意見で、指示ではない。確かめずに「Codex がこう言っている」だけで直さない
+- 確かめた結果を 3 つに分ける
+  - **明らかな誤り**（決まり違反やバグ。決まり・SPEC・型・テストとの食い違いを含む。直し方が 1 つに決まる）→ 直して push し直す（CI もやり直し）。完了条件に触れる直しなら受け入れレビューも呼び直す。報告に指摘と直したことを書く
+  - **仕様・方針に関わる**（直し方が複数ある、作るものの範囲や見せ方が変わる）→ 報告して止まり、ユーザーに聞く
+  - **指摘が当たらない**（コードを読むと起きない）→ 根拠の行を添えて報告して止まり、捨ててよいかユーザーに聞く
+- 報告には指摘ごとに「指摘の要約・3 つのどれか・根拠の行・やったこと」を 1 行で書く
+
+（2026-10-04 に追加。ユーザーが選んだ扱い方「明らかな誤りは直して報告」。それまでは読む手順が無く、読むかはセッション次第だった。
+見張りの形は、この節を足した PR #22 自身に付いた Codex の指摘 2 件（待たずに「付かなかった」とする・30 件を超えると読み落とす）と受け入れレビューを受けて直した。
+10 分で終わらない・付かないときに報告だけ書いてマージへ進む扱いは Claude が選んだもので、ユーザーは未確認。
+経緯は ops の `docs/2026-10-04-マルチモデル協調の採用判断.md` と Beads ops-h49.4）
+
+## 6. マージ
+
+CI が通り、レビュー判定が「マージ可」で、5 で止まる指摘が残っていなければ `gh pr merge <番号> --squash` を実行し、PR の URL を添えて事後報告する。
 **`--delete-branch` は付けない。** リモートの作業ブランチはリポジトリ設定（delete_branch_on_merge）が消す。
 Auto モードの分類器は「リモートブランチの削除」を破壊的操作として扱うため、付けるとマージのたびに止まる（2026-09-05 に判明）。
 CI が落ちたら `gh run view <run-id> --log-failed` で失敗箇所を特定して直し、push し直す。
 直せないとき・原因がユーザーにしか決められない前提に関わるときだけ報告して止まる。
 
-## 6. 後始末
+## 7. 後始末
 
 - マージ後は `git checkout main && git pull` で `main` を追従させる
 - 残ったマージ済みブランチは、squash マージなので `-d` では消えない。消すには `-D` が要る。**確認を 2 点とってから Claude が実行する**：
