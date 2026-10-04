@@ -10,6 +10,8 @@ description: PR の作成からマージまでの手順（コミット前の検�
 
 ## 1. コミット前
 
+作業の区切り（TODO のタスクが終わる）なら、先に `apps-workflow:handoff` を呼び、引き継ぎを同じブランチに入れる（受け入れレビューを通すため、PR を作る前に。ユーザーに聞かない）。
+
 CI と同じ検査を直接回す。
 
 - `frontend/`：`npm run format:check` → `npm run lint` → `npm run typecheck` → `npx vitest run` → `npm run build`
