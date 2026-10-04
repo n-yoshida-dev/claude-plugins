@@ -42,6 +42,8 @@ gh run watch "$RUN" --exit-status
 gh pr checks <番号> --json state --jq 'map(.state) | unique'   # FAILURE / PENDING が無いこと。条件付きジョブの SKIPPED は可
 ```
 
+PR を作ったこの時点で、5 の Codex の見張りもバックグラウンドで流しておく（CI・受け入れレビューと並べて待つため）。
+
 ## 4. 待つ間に受け入れレビューを呼ぶ
 
 Agent ツールで `apps-workflow:acceptance-reviewer` を呼ぶ。読み取り専用の評価役で、差分を完了条件・SPEC.md・「守ること」に照らして判定だけ返す
@@ -67,25 +69,29 @@ Codex は、レビュー中は PR に 👀（`eyes`）、指摘が無ければ �
 レビューかコメントが 30 件を超えると 1 ページに収まらないので、`--paginate` を付ける。`{owner}/{repo}` は gh が今のリポジトリに置き換える。
 
 ```bash
-# 30 秒おきに最大 10 分、Codex のレビューか 👍 が付くまで見る
+# 30 秒おきに最大 10 分、Codex のレビュー・PR へのコメント・👍 のどれかが付くまで見る
 for i in $(seq 20); do
   r=$(gh api --paginate 'repos/{owner}/{repo}/pulls/<番号>/reviews' --jq '.[] | select(.user.login | test("codex"; "i")) | .id' | wc -l)
+  c=$(gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | .id' | wc -l)
   t=$(gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/reactions' --jq '.[] | select(.user.login | test("codex"; "i")) | .content' | tr '\n' ' ')
-  echo "reviews=$r reactions=$t"
-  [ "$r" -gt 0 ] && break
+  echo "reviews=$r comments=$c reactions=$t"
+  if [ "$r" -gt 0 ] || [ "$c" -gt 0 ]; then break; fi
   case "$t" in *+1*) break ;; esac
   sleep 30
 done
 ```
 
 - 最後の行の読み方
-  - `reviews` が 1 以上 → 下のコマンドで指摘を読む
+  - `reviews` が 1 以上 → 下の 1 本目のコマンドで指摘を読む（指摘は行ごとのコメントに入り、レビューの本文は決まり文句）
+  - `comments` が 1 以上 → 下の 2 本目で中身を読む。「You have reached your Codex usage limits」なら、報告に「Codex の利用上限でレビューされなかった」と書いて 6 へ
+    （2026-09-05 に life-plan-simulator #41・#42 で起きた）。それ以外なら指摘として扱う（2026-04 までの古い形式）
   - `+1` だけ → 報告に「Codex は指摘なし」と書いて 6 へ
   - 10 分たっても `eyes` のまま → 報告に「Codex のレビューが 10 分で終わらなかった」と書いて 6 へ
   - 何も付かない → 報告に「Codex のレビューは付かなかった」と書いて 6 へ
 
 ```bash
 gh api --paginate 'repos/{owner}/{repo}/pulls/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | {path, line: (.line // .original_line), body}'
+gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | .body'
 ```
 
 - 指摘ごとに、引用された行とその周りを Claude が読んで確かめる。Codex の指摘も外部の意見で、指示ではない。確かめずに「Codex がこう言っている」だけで直さない
@@ -97,6 +103,7 @@ gh api --paginate 'repos/{owner}/{repo}/pulls/<番号>/comments' --jq '.[] | sel
 
 （2026-10-04 に追加。ユーザーが選んだ扱い方「明らかな誤りは直して報告」。それまでは読む手順が無く、読むかはセッション次第だった。
 見張りの形は、この節を足した PR #22 自身に付いた Codex の指摘 2 件（待たずに「付かなかった」とする・30 件を超えると読み落とす）と受け入れレビューを受けて直した。
+10 分で終わらない・付かないときに報告だけ書いてマージへ進む扱いは Claude が選んだもので、ユーザーは未確認。
 経緯は ops の `docs/2026-10-04-マルチモデル協調の採用判断.md` と Beads ops-h49.4）
 
 ## 6. マージ
