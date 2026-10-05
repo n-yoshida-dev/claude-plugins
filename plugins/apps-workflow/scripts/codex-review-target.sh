@@ -27,7 +27,9 @@ deny() {
 [ $# -eq 1 ] || { echo "使い方: bash codex-review-target.sh <文書のパス>" >&2; exit 2; }
 [ -e "$1" ] || deny "ファイルがありません: $1"
 doc="$(realpath -e -- "$1")" || deny "パスを解決できません: $1"
-[ -f "$doc" ] && [ -r "$doc" ] || deny "読めるファイルではありません: $doc"
+if [ ! -f "$doc" ] || [ ! -r "$doc" ]; then
+  deny "読めるファイルではありません: $doc"
+fi
 [ -s "$doc" ] || deny "空のファイルです: $doc"
 
 name="$(basename -- "$doc")"

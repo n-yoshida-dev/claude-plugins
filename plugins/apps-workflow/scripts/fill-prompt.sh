@@ -21,7 +21,9 @@ fail() {
 
 [ $# -ge 1 ] || fail "使い方: bash fill-prompt.sh <テンプレート> 名前=値 名前=@ファイル ..."
 template="$1"; shift
-[ -f "$template" ] && [ -r "$template" ] || fail "テンプレートが読めません: $template"
+if [ ! -f "$template" ] || [ ! -r "$template" ]; then
+  fail "テンプレートが読めません: $template"
+fi
 
 declare -A inline_values=()
 declare -A file_values=()
@@ -36,7 +38,9 @@ for pair in "$@"; do
   fi
   if [ "${value:0:1}" = "@" ]; then
     file="${value:1}"
-    [ -f "$file" ] && [ -r "$file" ] || fail "$name に差し込むファイルが読めません: $file"
+    if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+      fail "$name に差し込むファイルが読めません: $file"
+    fi
     file_values[$name]="$file"
   else
     [[ "$value" != *$'\n'* ]] || fail "$name の値に改行があります。複数行はファイルにして 名前=@ファイル で渡してください"
