@@ -28,6 +28,12 @@ jobs:
             shellcheck "$f" || exit 1
           done
 
+      - name: スクリプトの回帰テスト（偽の codex を使い、利用枠は使わない）
+        run: |
+          for f in $(git ls-files 'plugins/*/scripts/test-*.sh'); do
+            bash "$f" || exit 1
+          done
+
       - uses: actions/setup-node@v5
         with:
           node-version: 24

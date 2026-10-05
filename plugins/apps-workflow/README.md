@@ -17,6 +17,9 @@ HANDOFF / PLAN / SPEC / TODO / KNOWLEDGE / `logs/decisions.md` のドキュメ�
 | スキル | `/apps-workflow:pr-check` | CI と同じ検査（`scripts/check-*.sh` → 秘密情報 → frontend → backend）をローカルでまとめて回す |
 | スキル | `/apps-workflow:pr-flow` | PR の作成からマージまでの手順（検査 → PR 本文 → CI の待ち方 → acceptance-reviewer → Codex のクラウドレビューの指摘 → マージ → 後始末）。Codex の指摘は Claude がコードで確かめ、明らかな誤りは直して報告、仕様・方針に関わるものと当たらないものはユーザーに聞く（v1.5.7）。Claude が PR を作る・マージするときに呼ぶ。ルール本体は apps ルート CLAUDE.md |
 | スキル | `/apps-workflow:dashboard` | 人間が開発状況（進捗・あなた待ち・今のタスク・CI・最近の変更・固有の指標）を 1 画面で見る「開発ダッシュボード」を、そのリポジトリ用に作る手順とテンプレート（`skills/dashboard/template/` の `update.mjs` / `index.html` / `README.md`）。「ダッシュボードを作りたい」「開発状況を見える化したい」で呼ぶ。方針（正本を読んで描くだけ・文章は 1 行・起動方法と更新ボタンをヘッダーに・依存 0）は共通で、見た目と固有の指標はリポジトリごとに変えてよい（v1.5.0）。`skills/dashboard/hub.mjs` を 1 本起動すると、全リポジトリのダッシュボードを `http://localhost:8790/` にまとめて配信する（v1.5.1） |
+| スクリプト | `scripts/codex-run.sh` | Codex を毎回同じ条件で呼ぶ共通の入口。モデル（既定 `gpt-6-astra`）・考える深さ（既定 `high`）・サンドボックス（`read-only` か `workspace-write`。必須）を必ず明示し、`--ignore-user-config --disable memories` で Codex 側の設定とメモリを切り離す。依頼文はファイルから標準入力で渡し、返答は codex が成功したときだけ `-o` のファイルに置く。標準出力は「結果・thread_id・使用量」の 3 行だけ。既定で `--ephemeral`（記録を残さない）。続きを聞く（`--resume <thread_id>`）予定の回は `--keep-session` を付ける。指定の誤りは codex を呼ぶ前に終了コード 2 で止める（v1.6.0） |
+| スクリプト | `scripts/codex-bin.sh` | codex の実行ファイルの場所を返す。環境変数 `CODEX_BIN` があればそれ、無ければ VS Code 拡張機能（openai.chatgpt）の中の最新版。PATH の codex は見ない（PATH に置くとラッパーを通らない呼び出しが Codex の既定の設定で走るため） |
+| テスト | `scripts/test-codex-wrapper.sh` | 上の 2 本の回帰テスト。引数を記録するだけの偽の codex を差し込むので、ChatGPT の利用枠を使わない。CI でも回す |
 | エージェント | `apps-workflow:acceptance-reviewer` | マージ前に差分を TODO.md の「完了条件：」・SPEC.md・CLAUDE.md「守ること」に照らして検品する読み取り専用の評価役。判定（マージ可／直してから／ユーザー判断が要る）を返すだけで、直すのは呼び出し側 |
 
 ## 受け入れレビューの呼び方（マージ前）
@@ -33,6 +36,21 @@ prompt: BASE=main、PR #12 の差分を検品してください。対象タス�
   （定義ファイルの指示による制約。Bash 自体を機械的に読み取り専用にする仕組みは Claude Code に無い）
 - 一般的なバグ探し・命名・性能は見ない。それは `/code-review` と `/simplify` の担当
 - 判定が「直してから」なら直して push、「ユーザー判断が要る」なら報告して止まる。前後の手順は `/apps-workflow:pr-flow`
+
+## Codex の呼び方（codex-run.sh）
+
+```
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" -s read-only -f 依頼書.md -o 結果.md -C <作業フォルダ>
+```
+
+- スキルの本文からは上のように `${CLAUDE_PLUGIN_ROOT}` で指す。手で呼ぶときは、このリポジトリの写し
+  `~/workspace/apps/claude-plugins/plugins/apps-workflow/scripts/codex-run.sh` を絶対パスで指す（導入先は版ごとにフォルダが変わるため）
+- ChatGPT の利用枠を使う。動かす前にユーザーの了承をとる（タスクごとに 1 回。apps ルートの CLAUDE.md）
+- 時間がかかることがあるので、Claude は Bash のバックグラウンド実行で呼び、完了の通知を待つ
+- ops と `data/` のある場所では使わない（Codex の中の操作には Claude 側のフックが効かない）
+- 指定の一覧は `bash codex-run.sh --help`
+- 未確認（v1.6.0 時点）：`--json` の出来事の形（thread_id と使用量の取り出し）、`exec resume` に `-c sandbox_mode` と標準入力が通るか。
+  実機で確かめる手順は ops の `docs/2026-10-04-マルチモデル協調の採用判断.md` §8 手順 4
 
 ## 前提
 
