@@ -21,6 +21,8 @@ HANDOFF / PLAN / SPEC / TODO / KNOWLEDGE / `logs/decisions.md` のドキュメ�
 | スクリプト | `scripts/codex-bin.sh` | codex の実行ファイルの場所を返す。環境変数 `CODEX_BIN` があればそれ、無ければ VS Code 拡張機能（openai.chatgpt）の中の最新版。PATH の codex は見ない（PATH に置くとラッパーを通らない呼び出しが Codex の既定の設定で走るため） |
 | 表 | `config/codex-models.json` | 用途（`design` 設計の案・`screen` 画面の見本・`review` レビュー・`implement` 実装を任せる）ごとに、Codex のモデル・考える深さ・状態（未比較など）・理由と、確認日・出典を書く。モデル名は OpenAI が決める外部の値なので、スクリプトに直書きせずここに置く（v1.7.0） |
 | スクリプト | `scripts/codex-models.sh` | 上の表を引く（`resolve <用途>`・`uses`）。`check` で表と Codex の手元のモデル一覧（`~/.codex/models_cache.json`）を照らし、新しいモデルが出た・表のモデルが消えた・表のモデルに廃止の予定が付いた、を知らせる。知らせるだけで表は書き換えない（v1.7.0） |
+| プロンプト | `prompts/` | マルチモデル協調のスキルが使う、外部のリポジトリから写したプロンプトとスキーマ 6 つ（slot-machine のレビュー役 2・審査役 1、0-to-1-Labs/codex-pr-review の検証プロンプトと出力の形、Crazytieguy/codex-plugin-cc の plan-review）。本文は改変なしで、冒頭に出典の注記、各フォルダに元のライセンスの写し。一覧と使うときの注意は `prompts/README.md`、コミットと本文の sha256 は `prompts/sources.json`（v1.8.0） |
+| テスト | `scripts/test-prompts.sh` | `prompts/` の出典とライセンスの表示を確かめる。ライセンスの写しがある・注記の出典がコミットと合う・改変なしのファイルの本文が元と同じ（sha256）・`sources.json` に載っていない写しが無い。CI でも回す（v1.8.0） |
 | テスト | `scripts/test-codex-wrapper.sh` | 上の 3 本の回帰テスト。引数を記録するだけの偽の codex と、テスト用の表・モデル一覧を差し込むので、ChatGPT の利用枠を使わず、本物の表の中身にも左右されない（本物の表は形だけを確かめる）。CI でも回す |
 | エージェント | `apps-workflow:acceptance-reviewer` | マージ前に差分を TODO.md の「完了条件：」・SPEC.md・CLAUDE.md「守ること」に照らして検品する読み取り専用の評価役。判定（マージ可／直してから／ユーザー判断が要る）を返すだけで、直すのは呼び出し側 |
 
