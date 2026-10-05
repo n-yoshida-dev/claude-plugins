@@ -28,7 +28,18 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-review-target.sh" "<文書のパス>"
 
 - 終了コード 0 なら、標準出力の「文書の絶対パス<TAB>リポジトリのルート」を控える。以下 `DOC` と `ROOT`
 - 終了コード 2 なら、表示された理由を利用者にそのまま伝えて止まる。**別のパスやコピーで送り直さない**
-  （ops の中・ルートに `data/` のあるリポジトリ・PRIVATE.md・`*.local.*`・`.env*`・gitignore の対象・文書でないファイルを止めている）
+  （ops・personal の中・ルートに `data/` のあるリポジトリ・PRIVATE.md・`*.local.*`・`.env*`・gitignore の対象・文書でないファイルを止めている）
+
+続けて、Codex に読ませる作業フォルダを、Git で管理しているファイルだけで作る。**Codex の作業フォルダにリポジトリそのものを渡さない。**
+Codex は読み取り専用でも作業フォルダのファイルを読みに行けるので、リポジトリそのものを渡すと、gitignore の PRIVATE.md などの実データが OpenAI に渡りうる。
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-review-export.sh" "$DOC" "$ROOT" "$W/tree"
+```
+
+- 標準出力の書き出し先を控える。以下 `TREE`。中身はリポジトリの HEAD に、レビューする文書の今の中身を重ねたもの（PRIVATE.md・`*.local.*`・`.env*` の名前のファイルは、見本も含めて外れる）
+- 文書が、非公開の場所を絶対パスで書いているときは、Codex がそこを読みうる（作業フォルダの外を読めるかは未確認）。利用者に伝えてから進むかを聞く
+- レビューした時点の文書の写しを残す（6 の再レビューで差分を取るため）：`cp "$DOC" "$W/doc-reviewed.md"`
 
 ## 2. Codex にレビューさせる
 
@@ -41,9 +52,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/promp
 Codex を呼ぶ。**Bash のバックグラウンド実行**で流し、完了の通知を待つ。通知が届く前に結果を書いたり、終わったと言ったりしない。
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f "$W/brief.md" -o "$W/review.md" -C "$ROOT" --keep-session --events "$W/events.jsonl"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f "$W/brief.md" -o "$W/review.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events.jsonl"
 ```
 
+- `-C` は書き出し（`TREE`）。書き出しは Git のリポジトリではないので `--skip-git-repo-check` を付ける
 - `--keep-session` は 6 の再レビュー（同じ会話の続き）のため。標準出力の `thread_id` と `使用量` を控える
 - 標準出力に「知らせ: n 件」が出たら（新しいモデル・廃止の予定など）、標準エラーの本文を利用者に伝え、Beads に付箋を作る（`config/codex-models.json` を比べて直すかの判断）
 - 失敗したら（終了コード 1）、理由を伝えて止まる。勝手に考える深さやモデルを変えてやり直さない
@@ -55,9 +67,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f "
 
 指摘ごとに確かめ役の依頼書を作る。
 
-1. 引用された文が文書の何行目にあるかを `grep -n` で探す。見つからなければ、行番号は 0 にする（確かめ役が「引用が文書に無い」と判断できるように）
+1. 引用された文が文書の何行目にあるかを `grep -n -F` で探す。引用が複数行にまたがる・「…」で縮めてある・言い回しが少し違うときは、引用の中の特徴のある短い一節（10〜20 字）で探し直す
 2. `$W/R<n>.json` に指摘を書く：
    `{"id":"R1","severity":"P1","code_location":{"path":"<ROOT からの相対パス>","line_start":12,"line_end":14},"quote":"<引用>","body":"<何が起きるか・直し方>"}`
+   - 探し直しても見つからなければ、`line_start` を 1、`line_end` を文書の最終行にし、`"location_note":"引用の場所を特定できなかった。文書全体から探して確かめる"` を足す。
+     **行番号を 0 などの範囲外にしない**（借りてきた検証プロンプトは、範囲外の行を指す指摘を当たっていないとするため、正しい指摘が捨てられる。PR #26 の Codex のクラウドレビュー）
 3. 行番号つきの文書を `cat -n "$DOC" > "$W/doc-numbered.txt"` で作る。差分の欄には `printf '差分なし（文書の今の中身をレビューした）\n' > "$W/no-diff.txt"` を使う
 4. 依頼書を作る：
 
@@ -68,25 +82,33 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/promp
 確かめ役は **Agent ツールで、`model` に `fable` を指定し、指摘 1 件につき 1 体を新しい文脈で**呼ぶ（全件を 1 つのメッセージで並べて同時に）。
 `subagent_type` は `general-purpose`、プロンプトは `$W/verify-R<n>.md` の中身に「作業フォルダは <ROOT>。ファイルは読むだけで、書かない。最終メッセージは JSON 1 つだけ」を添える。
 
-- 対象の文書を Fable が書いたときは、`model` を `opus` にする（書き手と確かめ役を分けるため。prompts/README.md「使うときの注意」）
+- 確かめ役が読むのは本物のリポジトリ（`ROOT`）でよい（Claude 側なのでフックが効く）。Codex に渡すのは書き出しだけ
+- この会話で Fable に書かせた文書だと分かっているときだけ、`model` を `opus` にする（書き手と確かめ役を分けるため。prompts/README.md「使うときの注意」）。分からなければ `fable`
 - 返ってきた JSON が `prompts/codex-pr-review/verifier-output-schema.json` の形（`verdict` が confirmed / refuted / inconclusive、`evidence` が文字列、`adjusted_confidence` が数）でなければ、同じ確かめ役に 1 回だけ直させる。それでも違えば「確かめられなかった」として扱う
 
 ## 4. 利用者に採否を聞く
 
 指摘ごとに、Claude のおすすめを付けて表にする。
 
-- confirmed → 採用をすすめる
-- refuted → 却下をすすめる
-- inconclusive → Claude が文書を読んで採用・却下・保留のどれかをすすめ、「Claude の推定」と書く
+- 当たっている（confirmed）→ 採用をすすめる
+- 当たっていない（refuted）→ 却下をすすめる
+- 決めきれない（inconclusive）→ Claude が文書を読んで採用・却下・保留のどれかをすすめ、「Claude の推定」と書く
 
-聞き方は利用者の決まりに合わせる（答えを求めるメッセージは頼みごと 1 つ、冒頭に「やってほしいこと」を 1 行、選択肢の画面は使わず普通の文で）：
+利用者に見せる言葉は、やさしい日本語にする（利用者の決まり「新しい言葉は説明してから使う」「中身が分からないまま承認させない」）。
+
+- 重さ：P0 →「とても重い」、P1 →「重い」、P2 →「軽い」
+- 確かめ：confirmed →「当たっている」、refuted →「当たっていない」、inconclusive →「決めきれない」
+- Codex の指摘（英語のことが多い）は、指摘ごとに「何が困るか」を具体例つきの日本語 1 行に直す。専門用語を使うなら、その場で一言説明する
+
+聞き方は利用者の決まりに合わせる。答えを求めるメッセージは頼みごと 1 つ、冒頭に「やってほしいこと」を 1 行、選択肢の画面は使わず普通の文で、返す言葉を指定する。
+**このメッセージには、作業の報告や次のアクションを書かない**（答えをもらってから書く）。
 
 ```
 やってほしいこと：指摘ごとの採否を「R1 採用、R2 却下（理由）」の形で返してください。おすすめどおりでよければ「おすすめどおり」とだけ返してください。
 
-| R | 重さ | 引用（短く） | Codex の指摘 | 確かめ（Fable） | おすすめ |
-|---|---|---|---|---|---|
-| R1 | P1 | 「…」 | … | confirmed：… | 採用 |
+| 番号 | 重さ | 何が困るか（やさしく） | 確かめた結果（Fable） | おすすめ |
+|---|---|---|---|---|
+| R1 | 重い | 手順 3 の前に手順 4 の結果が要るので、書いた順に進めると途中で止まる | 当たっている（文書の 12〜14 行目） | 採用 |
 ```
 
 **返事が来るまで文書を直さない。**
@@ -117,6 +139,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/promp
 ```
 
 - 採否の欄には利用者の言葉をそのまま書く。言っていない理由を足さない。「おすすめどおり」なら「（利用者の言葉：「おすすめどおり」）」
+- 返事に出てこなかった指摘は「未回答」と書く。**おすすめで埋めない**（答えをもらっていない問いは回答済みにしない）。未回答の指摘は直さない
 - 採用した指摘だけ、Claude が文書を直す。直したら「対応」を埋める
 - 台帳と文書の変更は、作業ブランチでコミットし、PR は `apps-workflow:pr-flow` の手順で進める
 
@@ -125,23 +148,26 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/promp
 同じ会話の続きで、直した文書を Codex にもう一度読ませる。
 
 1. `$W/decisions.md` に、指摘ごとの採否と対応を書く（台帳の「指摘と採否」の写しでよい）
-2. `git -C "$ROOT" diff -- "$DOC" > "$W/diff.txt"`（コミット済みなら、レビューしたコミットとの差分）。空なら再レビューしない
-3. 依頼書を作る（このスキルの自作の `followup.md`。判断文書の問い 4 で `plan-review-followup.md` は写していない）：
+2. レビューした時点の写しと比べて差分を取る：`diff -u "$W/doc-reviewed.md" "$DOC" > "$W/diff.txt"`（コミットしたあとでも取れる）。空なら、まだ直していないので再レビューしない
+3. 書き出しの中の文書を今の中身にする：`cp "$DOC" "$TREE/<ROOT からの文書の相対パス>"`
+4. 依頼書を作る（このスキルの自作の `followup.md`。判断文書の問い 4 で `plan-review-followup.md` は写していない）：
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/skills/codex-review/followup.md" DECISIONS=@"$W/decisions.md" DIFF=@"$W/diff.txt" PLAN_CONTENT=@"$DOC" > "$W/followup-brief.md"
 ```
 
-4. 2 と同じくバックグラウンドで、`thread_id` を続ける：
+5. 2 と同じくバックグラウンドで、`thread_id` を続ける：
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review --resume "<thread_id>" -s read-only -f "$W/followup-brief.md" -o "$W/review-2.md" -C "$ROOT" --keep-session --events "$W/events-2.jsonl"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review --resume "<thread_id>" -s read-only -f "$W/followup-brief.md" -o "$W/review-2.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events-2.jsonl"
 ```
 
-5. 新しい指摘があれば 3〜5 をくり返し、台帳に「## 再レビュー（YYYY-MM-DD）」の節を足す。採用した指摘の「解消／未解消」もそこに書く
+6. 新しい指摘があれば 3〜5 をくり返し、台帳に「## 再レビュー（YYYY-MM-DD）」の節を足す。採用した指摘の「解消／未解消」もそこに書く。
+   次の再レビューに備えて、写しを今の中身にする：`cp "$DOC" "$W/doc-reviewed.md"`
 
 ## しないこと
 
+- Codex の作業フォルダに、リポジトリそのものを渡すこと（いつも 1 で作った書き出しを渡す）
 - GitHub への投稿（PR へのコメント・Issue・レビュー）
 - 採否が決まる前の文書の修正。Codex に文書を直させること（Codex はいつも読み取り専用）
 - コードの差分のレビュー（GitHub の Codex クラウドレビューの担当。pr-flow 5 節）

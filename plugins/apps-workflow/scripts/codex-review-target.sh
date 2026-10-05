@@ -10,9 +10,10 @@
 #   - ファイルが無い・読めない・空
 #   - 文書でない（拡張子が .md / .txt 以外）。コードの差分は GitHub の Codex クラウドレビューの担当（pr-flow 5 節）
 #   - Git のリポジトリの外（Codex の作業フォルダと、読み取りの範囲を決められないため）
-#   - 送ってはいけない場所（環境変数 CODEX_DENY_ROOTS に : 区切りで並べる。既定は ~/workspace/ops）の中と、
-#     リポジトリのルートに data/ があるもの（Codex の中の操作には Claude 側のフックが効かないため。
-#     ops の docs/2026-10-04-マルチモデル協調の採用判断.md §7）
+#   - 送ってはいけない場所の中。~/workspace/ops（雑務・家計）と ~/workspace/personal（自分に関するデータ）はいつも入る。
+#     ほかに足したい場所は環境変数 CODEX_DENY_ROOTS に : 区切りで並べる（既定の 2 つを置き換えるのではなく、足す）
+#   - リポジトリのルートに data/ があるもの（Codex の中の操作には Claude 側のフックが効かないため。
+#     ops の docs/2026-10-04-マルチモデル協調の採用判断.md §7。§7 が念頭に置くのは ops の data/ だが、ほかのリポジトリでも安全側に止める）
 #   - PRIVATE.md・*.local.*・.env*（生活の事実や秘密の置き場。apps の CLAUDE.md「個人情報の取り扱い」）
 #   - Git の管理から外したファイル（gitignore の対象。コミットしない＝外に出さない前提のファイルのため）
 # シンボリックリンクは行き先で判定する（リンクを通して止める場所の中を送らないため）
@@ -44,8 +45,8 @@ esac
 root="$(git -C "$(dirname -- "$doc")" rev-parse --show-toplevel 2>/dev/null)" || deny "Git のリポジトリの外です: $doc"
 root="$(realpath -e -- "$root")" || deny "リポジトリのルートを解決できません: $root"
 
-IFS=':' read -r -a deny_roots <<< "${CODEX_DENY_ROOTS:-$HOME/workspace/ops}"
-for d in "${deny_roots[@]}"; do
+IFS=':' read -r -a extra_roots <<< "${CODEX_DENY_ROOTS:-}"
+for d in "$HOME/workspace/ops" "$HOME/workspace/personal" "${extra_roots[@]}"; do
   [ -n "$d" ] || continue
   d="$(realpath -m -- "$d")"
   case "$doc/" in

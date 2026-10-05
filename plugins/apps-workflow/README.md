@@ -24,10 +24,11 @@ HANDOFF / PLAN / SPEC / TODO / KNOWLEDGE / `logs/decisions.md` のドキュメ�
 | プロンプト | `prompts/` | マルチモデル協調のスキルが使う、外部のリポジトリから写したプロンプトとスキーマ 6 つ（slot-machine のレビュー役 2・審査役 1、0-to-1-Labs/codex-pr-review の検証プロンプトと出力の形、Crazytieguy/codex-plugin-cc の plan-review）。本文は改変なしで、冒頭に出典の注記、各フォルダに元のライセンスの写し。一覧と使うときの注意は `prompts/README.md`、コミットと本文の sha256 は `prompts/sources.json`（v1.8.0） |
 | テスト | `scripts/test-prompts.sh` | `prompts/` の出典とライセンスの表示を確かめる。ライセンスの写しがある・注記の出典がコミットと合う・改変なしのファイルの本文が元と同じ（sha256）・`sources.json` に載っていない写しが無い。CI でも回す（v1.8.0） |
 | テスト | `scripts/test-codex-wrapper.sh` | 上の 3 本の回帰テスト。引数を記録するだけの偽の codex と、テスト用の表・モデル一覧を差し込むので、ChatGPT の利用枠を使わず、本物の表の中身にも左右されない（本物の表は形だけを確かめる）。CI でも回す |
-| スキル | `/apps-workflow:codex-review <文書>` | 設計書・計画・仕様の文書を Codex（用途 `review` の表のモデル）に読み取り専用でレビューさせる（借りてきた `plan-review.md`）→ 指摘ごとに Fable が新しい文脈で文書と照らして確かめる（借りてきた検証プロンプト）→ 利用者が採否を決める → `logs/codex-review/` の台帳に残す → 頼まれたら同じ会話の続きで再レビュー。**利用者が打ったときだけ動く**（`disable-model-invocation`。打ったことをその文書で Codex の利用枠を使う了承とみなす）。ops の中・ルートに `data/` のあるリポジトリ・PRIVATE.md・`*.local.*`・`.env*`・gitignore の対象・文書でないファイルは送らない。コードの差分は GitHub の Codex クラウドレビューの担当で扱わない。GitHub への投稿も自動の修正もしない（v1.9.0） |
+| スキル | `/apps-workflow:codex-review <文書>` | 設計書・計画・仕様の文書を Codex（用途 `review` の表のモデル）に読み取り専用でレビューさせる（借りてきた `plan-review.md`）→ 指摘ごとに Fable が新しい文脈で文書と照らして確かめる（借りてきた検証プロンプト）→ 利用者が採否を決める → `logs/codex-review/` の台帳に残す → 頼まれたら同じ会話の続きで再レビュー。**利用者が打ったときだけ動く**（`disable-model-invocation`。打ったことをその文書で Codex の利用枠を使う了承とみなす）。ops・personal の中・ルートに `data/` のあるリポジトリ・PRIVATE.md・`*.local.*`・`.env*`・gitignore の対象・文書でないファイルは送らない。**Codex の作業フォルダはリポジトリそのものではなく、Git で管理しているファイルだけの書き出し**（Codex は読み取り専用でも作業フォルダを読みに行けるため。作業フォルダの外を絶対パスで読めるかは未確認）。コードの差分は GitHub の Codex クラウドレビューの担当で扱わない。GitHub への投稿も自動の修正もしない（v1.9.0） |
 | スクリプト | `scripts/fill-prompt.sh` | プロンプトのテンプレートの差し込み口（`{{名前}}`）を、値かファイルの中身で埋める。冒頭の出典の注記を外し、埋め残し・テンプレートに無い名前があれば何も出さずに止める（v1.9.0） |
-| スクリプト | `scripts/codex-review-target.sh` | codex-review に渡された文書が Codex に送ってよいものかを確かめ、文書とリポジトリのルートの絶対パスを返す。送らない場所は環境変数 `CODEX_DENY_ROOTS`（既定 `~/workspace/ops`）。シンボリックリンクは行き先で判定する（v1.9.0） |
-| テスト | `scripts/test-codex-review.sh` | 上の 2 本と、codex-review の手順書が指すファイルがそろっているかの回帰テスト。CI でも回す（v1.9.0） |
+| スクリプト | `scripts/codex-review-target.sh` | codex-review に渡された文書が Codex に送ってよいものかを確かめ、文書とリポジトリのルートの絶対パスを返す。送らない場所は `~/workspace/ops` と `~/workspace/personal` がいつも入り、環境変数 `CODEX_DENY_ROOTS`（: 区切り）で足せる。シンボリックリンクは行き先で判定する（v1.9.0） |
+| スクリプト | `scripts/codex-review-export.sh` | Codex に読ませる作業フォルダを、リポジトリの HEAD（`git archive`。gitignore の対象やコミットしていないファイルは入らない）に、レビューする文書の今の中身を重ねて作る。PRIVATE.md・`*.local.*`・`.env*` の名前のファイルは、管理している見本も外す（v1.9.0） |
+| テスト | `scripts/test-codex-review.sh` | 上の 3 本と、codex-review の手順書の回帰テスト（手順書が指すファイルがある・Codex にリポジトリそのものを渡していない・引用の場所の扱いがそろっている）。CI でも回す（v1.9.0） |
 | エージェント | `apps-workflow:acceptance-reviewer` | マージ前に差分を TODO.md の「完了条件：」・SPEC.md・CLAUDE.md「守ること」に照らして検品する読み取り専用の評価役。判定（マージ可／直してから／ユーザー判断が要る）を返すだけで、直すのは呼び出し側 |
 
 ## 受け入れレビューの呼び方（マージ前）

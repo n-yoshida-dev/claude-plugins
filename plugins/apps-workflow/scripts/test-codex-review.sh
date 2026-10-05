@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# fill-prompt.sh・codex-review-target.sh と codex-review スキルの手順書の回帰テスト
+# fill-prompt.sh・codex-review-target.sh・codex-review-export.sh と codex-review スキルの手順書の回帰テスト
 #
 # 使い方： bash test-codex-review.sh
 # Codex は呼ばない。一時フォルダにテンプレートと Git のリポジトリを作って確かめる。CI でも回す
@@ -143,6 +143,26 @@ done < <(grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]+' "$SKILL_DIR/SKILL.
 check "手順書が指すファイルがすべてある${missing:+（無い:$missing）}" test -z "$missing"
 check "手順書は利用者が打ったときだけ動く（disable-model-invocation）" grep -qxF -- "disable-model-invocation: true" "$SKILL_DIR/SKILL.md"
 
+# 手順書で codex-run.sh を呼ぶ行が、すべて作業フォルダに書き出し（$TREE）を渡し、リポジトリそのもの（$ROOT）を渡していないか
+# （リポジトリそのものを渡すと、gitignore の PRIVATE.md なども Codex が読めるため。PR #26 の受け入れレビュー）
+codex_runs_use_tree() {
+  local lines total with_tree
+  lines="$(grep -F 'scripts/codex-run.sh' "$SKILL_DIR/SKILL.md" | grep -F -- ' -C ')"
+  [ -n "$lines" ] || return 1
+  total="$(wc -l <<< "$lines")"
+  # 手順書に書かれた「$TREE」「$ROOT」という文字そのものを探すので、わざと単引用符で書く
+  # shellcheck disable=SC2016
+  with_tree="$(grep -cF -- '-C "$TREE"' <<< "$lines")"
+  # shellcheck disable=SC2016
+  ! grep -qF -- '-C "$ROOT"' <<< "$lines" && [ "$with_tree" -eq "$total" ]
+}
+check "手順書は Codex の作業フォルダに書き出しを渡し、リポジトリそのものを渡さない" codex_runs_use_tree
+
+# 引用の場所を特定できないときの扱い（文書全体を範囲にし、location_note を付ける）を、手順書と確かめ役の決まりの両方が書いている
+# （行番号を範囲外にすると、借りてきた検証プロンプトが正しい指摘も当たっていないとするため。PR #26 の Codex のクラウドレビュー）
+check "手順書が引用の場所を特定できないときの扱いを書いている" grep -qF -- "location_note" "$SKILL_DIR/SKILL.md"
+check "確かめ役の決まりが引用の場所を特定できないときの扱いを書いている" grep -qF -- "location_note" "$SKILL_DIR/verify-rules.md"
+
 echo "--- codex-review-target.sh ---"
 
 # テスト用のリポジトリ
@@ -209,6 +229,70 @@ printf '# 計画\n' > "$R2/docs/plan.md"
 target "$R2/docs/plan.md"
 check "ルートに data/ があれば終了コード 2" target_status_is 2
 check "data/ があると示す" target_err_has "data/"
+
+# ops と personal は、CODEX_DENY_ROOTS を設定してもいつも送らない（環境変数は足すだけで、置き換えない）
+for place in ops personal; do
+  H="$T/home-$place"
+  mkdir -p "$H/workspace/$place/docs"
+  git -C "$H/workspace/$place" init -q
+  printf '# 計画\n' > "$H/workspace/$place/docs/plan.md"
+  HOME="$H" target "$H/workspace/$place/docs/plan.md"
+  check "CODEX_DENY_ROOTS を設定しても ~/workspace/$place は送らない" target_status_is 2
+done
+
+echo "--- codex-review-export.sh ---"
+
+EXPORT_SH="$SCRIPT_DIR/codex-review-export.sh"
+# codex-review-export.sh を動かし、標準出力・標準エラー・終了コードを残す
+export_tree() {
+  bash "$EXPORT_SH" "$@" > "$T/export.out" 2> "$T/export.err"
+  echo $? > "$T/export.status"
+}
+# 直前の export の終了コードが指定の値か
+export_status_is() { [ "$(cat "$T/export.status")" = "$1" ]; }
+# 直前の export の標準エラーに、指定の文字列があるか
+export_err_has() { grep -qF -- "$1" "$T/export.err"; }
+
+# 管理しているファイル・gitignore の対象・管理していないファイルが混ざったリポジトリ
+R3="$T/repo-export"
+mkdir -p "$R3/docs" "$R3/src"
+git -C "$R3" init -q
+printf 'PRIVATE.md\n*.local.md\n' > "$R3/.gitignore"
+printf '# 計画（コミット済み）\n' > "$R3/docs/plan.md"
+printf 'a\n' > "$R3/src/a.txt"
+printf 'KEY=\n' > "$R3/.env.example"
+printf '{}\n' > "$R3/config.local.json.example"
+git -C "$R3" add -A
+git -C "$R3" -c user.name=test -c user.email=test@example.com commit -q -m init
+printf '世帯の実データ\n' > "$R3/PRIVATE.md"
+printf '非公開のメモ\n' > "$R3/docs/notes.local.md"
+printf '# 計画（未コミットの変更）\n' > "$R3/docs/plan.md"
+printf '新しいファイル\n' > "$R3/docs/new.md"
+
+export_tree "$R3/docs/plan.md" "$R3" "$T/exp1"
+check "書き出しは終了コード 0" export_status_is 0
+check "書き出し先の絶対パスを出す" test "$(cat "$T/export.out")" = "$T/exp1"
+check "管理しているファイルは入る" test -f "$T/exp1/src/a.txt"
+check "レビューする文書は今の中身（未コミットの変更を含む）" grep -qxF -- "# 計画（未コミットの変更）" "$T/exp1/docs/plan.md"
+check "gitignore の PRIVATE.md は入らない" test ! -e "$T/exp1/PRIVATE.md"
+check "gitignore の *.local.md は入らない" test ! -e "$T/exp1/docs/notes.local.md"
+check "管理していないファイルは入らない" test ! -e "$T/exp1/docs/new.md"
+check "管理している .env.example も外す" test ! -e "$T/exp1/.env.example"
+check "管理している *.local.* の見本も外す" test ! -e "$T/exp1/config.local.json.example"
+check "外したファイルを標準エラーに示す" export_err_has ".env.example"
+
+export_tree "$R3/docs/plan.md" "$R3" "$T/exp1"
+check "書き出し先が空でなければ終了コード 2" export_status_is 2
+
+export_tree "$T/outside/plan.md" "$R3" "$T/exp2"
+check "文書がリポジトリの外なら終了コード 2" export_status_is 2
+
+R4="$T/repo-nocommit"
+mkdir -p "$R4"
+git -C "$R4" init -q
+printf '# 計画\n' > "$R4/plan.md"
+export_tree "$R4/plan.md" "$R4" "$T/exp3"
+check "コミットが無いリポジトリは終了コード 2" export_status_is 2
 
 echo
 if [ "$failures" -eq 0 ]; then
