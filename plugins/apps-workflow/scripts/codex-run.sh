@@ -22,6 +22,13 @@
 #   --keep-session       会話の記録を ~/.codex/sessions に残す（--ephemeral を付けない）。あとで --resume するときに付ける。
 #                        --resume した回は、--ephemeral を付けても元の会話の記録に追記される（2026-10-05 に実機で確認）
 #   --skip-git-repo-check  Git の管理外のフォルダで動かす
+#   --deny-read-list <ファイル>  Codex に読ませない場所の一覧（例: config/codex-review-deny-read.txt）。-s read-only のときだけ使える。
+#                        権限のプロファイル（全体は読み取りだけ、一覧の場所は deny）を -c で組み立てて渡す。
+#                        Codex の読み取り専用は、そのままだと作業フォルダの外もどこでも読めるため（2026-10-05 に codex sandbox で確かめた）。
+#                        一覧は 1 行 1 つの絶対パス。~ はホーム、{uid} はユーザー ID、* はその場所にあるものすべて（. で始まるものも）、
+#                        先頭の ! は除外。# から後ろと空行は読まない。リンクは行き先に置き換え、ほかの場所の中に重なるものは省く。
+#                        作業フォルダ（-C）や codex の実行ファイルが一覧の場所の中にあるときは止める（親の deny が勝ち、読めなくなるため）。
+#                        このときサンドボックスは -s ではなく -c sandbox_mode で渡す（-s を付けると権限のプロファイルが捨てられるため）
 #
 # 必ず付けるもの：-m・-c model_reasoning_effort・サンドボックス・--ignore-user-config・--disable memories・--json。
 #   --ignore-user-config で ~/.codex/config.toml（Codex 側のプラグインや既定のモデル）を読まない。認証は保たれる
@@ -44,7 +51,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 使い方を標準エラーに出して終了する
 usage_error() {
   echo "codex-run.sh: $1" >&2
-  echo "使い方: bash codex-run.sh (--use <用途> | -m <モデル> -e <effort>) [--resume <thread_id>] -s <read-only|workspace-write> -f <依頼書> -o <結果> [-C フォルダ] [--schema <ファイル>] [--events <ファイル>] [--keep-session] [--skip-git-repo-check]" >&2
+  echo "使い方: bash codex-run.sh (--use <用途> | -m <モデル> -e <effort>) [--resume <thread_id>] -s <read-only|workspace-write> -f <依頼書> -o <結果> [-C フォルダ] [--schema <ファイル>] [--events <ファイル>] [--keep-session] [--skip-git-repo-check] [--deny-read-list <ファイル>]" >&2
   exit 2
 }
 
@@ -72,6 +79,7 @@ schema_file=""
 events_file=""
 resume_id=""
 keep_session=0
+deny_list_file=""
 skip_git_check=0
 
 while [ $# -gt 0 ]; do
@@ -87,6 +95,7 @@ while [ $# -gt 0 ]; do
     --events) need_value "$1" $#; events_file="$2"; shift 2 ;;
     --resume) need_value "$1" $#; resume_id="$2"; shift 2 ;;
     --keep-session) keep_session=1; shift ;;
+    --deny-read-list) need_value "$1" $#; deny_list_file="$2"; shift 2 ;;
     --skip-git-repo-check) skip_git_check=1; shift ;;
     # 冒頭のコメント（使い方）だけを出す
     -h|--help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"; exit 0 ;;
@@ -139,8 +148,85 @@ if [ -n "$events_file" ]; then
 fi
 workdir="$(to_abs "${workdir:-$PWD}")"
 [ -d "$workdir" ] || usage_error "-C のフォルダがありません: $workdir"
+workdir="$(realpath -e -- "$workdir")" || usage_error "-C のフォルダを解決できません: $workdir"
+
+# 読ませない場所の一覧から、権限のプロファイルの filesystem の表（TOML のインライン表）を組み立てる
+deny_paths=()
+if [ -n "$deny_list_file" ]; then
+  [ "$sandbox" = "read-only" ] || usage_error "--deny-read-list は -s read-only のときだけ使えます（指定: $sandbox）"
+  if [ ! -f "$deny_list_file" ] || [ ! -r "$deny_list_file" ]; then
+    usage_error "--deny-read-list のファイルが読めません: $deny_list_file"
+  fi
+  uid="$(id -u)"
+  candidates=()
+  excludes=()
+  shopt -s dotglob nullglob
+  while IFS= read -r raw || [ -n "$raw" ]; do
+    entry="${raw%%#*}"
+    entry="${entry#"${entry%%[![:space:]]*}"}"
+    entry="${entry%"${entry##*[![:space:]]}"}"
+    [ -n "$entry" ] || continue
+    exclude=0
+    if [ "${entry:0:1}" = "!" ]; then exclude=1; entry="${entry:1}"; fi
+    # 先頭の ~ をホームにする（一覧の文字そのものの ~ なので、シェルの展開ではなく文字として比べる）
+    case "$entry" in \~|\~/*) entry="$HOME${entry:1}" ;; esac
+    entry="${entry//\{uid\}/$uid}"
+    case "$entry" in /*) ;; *) usage_error "--deny-read-list の場所は絶対パスで書いてください: $raw" ;; esac
+    # TOML の文字列に埋め込むので、引用符・バックスラッシュ・制御文字を入れない
+    [[ "$entry" =~ ^[^\"\\[:cntrl:]]+$ ]] || usage_error "--deny-read-list の場所に使えない文字があります: $raw"
+    if [ "$exclude" -eq 1 ]; then
+      excludes+=("$(realpath -m -- "$entry")")
+    elif [[ "$entry" == *"*"* ]]; then
+      # * はその場所にあるもの（. で始まるものも含む）すべてに広げる。空白を含むパスを割らないよう IFS を空にする
+      old_ifs="$IFS"; IFS=''
+      # shellcheck disable=SC2206
+      matched=($entry)
+      IFS="$old_ifs"
+      for m in "${matched[@]}"; do candidates+=("$m"); done
+    else
+      candidates+=("$entry")
+    fi
+  done < "$deny_list_file"
+  shopt -u dotglob nullglob
+
+  # リンクは行き先に置き換える（bwrap はリンクの上に「読めない」を重ねられないため）。除外したものは外す
+  resolved=()
+  for c in "${candidates[@]}"; do
+    r="$(realpath -m -- "$c")"
+    skip=0
+    for x in "${excludes[@]}"; do [ "$r" != "$x" ] || skip=1; done
+    [ "$skip" -eq 1 ] || resolved+=("$r")
+  done
+  # ほかの読ませない場所の中にあるものは省く（親を読めなくすると、子に重ねて書けないため）。同じものも 1 つにする
+  for p in "${resolved[@]}"; do
+    keep=1
+    for q in "${resolved[@]}"; do
+      [ "$p" != "$q" ] || continue
+      case "$p/" in "$q"/*) keep=0 ;; esac
+    done
+    for d in "${deny_paths[@]}"; do [ "$d" != "$p" ] || keep=0; done
+    [ "$keep" -eq 0 ] || deny_paths+=("$p")
+  done
+  [ "${#deny_paths[@]}" -gt 0 ] || usage_error "--deny-read-list に場所が 1 つもありません: $deny_list_file"
+  # * で広げた名前やリンクの行き先にも、TOML の文字列を壊す文字（引用符・バックスラッシュ・制御文字）が無いかを確かめる
+  for d in "${deny_paths[@]}"; do
+    [[ "$d" =~ ^[^\"\\[:cntrl:]]+$ ]] || usage_error "読ませない場所に使えない文字があります（* で広げた名前かリンクの行き先）: $d"
+  done
+
+  for d in "${deny_paths[@]}"; do
+    case "$workdir/" in
+      "$d"/*) usage_error "作業フォルダ（-C）が、読ませない場所（$d）の中にあります。作業フォルダはその外に作ってください" ;;
+    esac
+  done
+fi
 
 bin="$(bash "$SCRIPT_DIR/codex-bin.sh")" || exit 2
+# Codex 本体が読ませない場所の中にあると、サンドボックスの中で Codex が自分を起動できない（2026-10-05 に確かめた）
+for d in "${deny_paths[@]}"; do
+  case "$(realpath -m -- "$bin")" in
+    "$d"/*) usage_error "codex の実行ファイル（$bin）が読ませない場所（$d）の中にあります。一覧に ! で除外を足してください" ;;
+  esac
+done
 
 # --- 一時ファイル（返答の受け皿と、出来事の記録の既定の置き場） ---
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/codex-run.XXXXXX")" || { echo "codex-run.sh: 一時フォルダを作れません" >&2; exit 1; }
@@ -152,9 +238,20 @@ tmp_out="$tmp_dir/last-message.md"
 args=(exec)
 [ -n "$resume_id" ] && args+=(resume)
 args+=(-m "$model" -c "model_reasoning_effort=\"$effort\"")
+if [ "${#deny_paths[@]}" -gt 0 ]; then
+  # 全体は読み取りだけ（":root"="read"）にし、一覧の場所を読めなくする。exec でも resume でも -c で渡せる
+  fs_table="{\":root\"=\"read\""
+  for p in "${deny_paths[@]}"; do fs_table+=",\"$p\"=\"deny\""; done
+  fs_table+="}"
+  args+=(-c 'default_permissions="codex_run_read_limited"' -c "permissions.codex_run_read_limited.filesystem=$fs_table")
+fi
 if [ -n "$resume_id" ]; then
   # exec resume には -s と -C が無い。サンドボックスは設定の上書きで渡し、作業フォルダは cd で合わせる
   args+=(-c "sandbox_mode=\"$sandbox\"")
+elif [ "${#deny_paths[@]}" -gt 0 ]; then
+  # 読ませない場所を渡すときは -s を使わず、設定の上書きで渡す。-s を付けると、渡した権限のプロファイルが捨てられ、
+  # 組み込みの「全体を読める」読み取り専用になる（2026-10-06 に実機で確かめた。codex-cli 0.160.0）
+  args+=(-c "sandbox_mode=\"$sandbox\"" -C "$workdir")
 else
   args+=(-s "$sandbox" -C "$workdir")
 fi
@@ -166,7 +263,7 @@ args+=(--ignore-user-config --disable memories --json -o "$tmp_out")
 # 最後の「-」は「依頼文を標準入力から読む」の意味
 args+=(-)
 
-echo "codex-run.sh: $bin / model=$model / effort=$effort（$model_source）/ sandbox=$sandbox${resume_id:+ / resume=$resume_id}" >&2
+echo "codex-run.sh: $bin / model=$model / effort=$effort（$model_source）/ sandbox=$sandbox${resume_id:+ / resume=$resume_id}${deny_list_file:+ / 読ませない場所 ${#deny_paths[@]} 件}" >&2
 
 # 表と Codex の手元のモデル一覧を照らす。知らせるだけで、呼び出しは止めない
 notice_count=0
