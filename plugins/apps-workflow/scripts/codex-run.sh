@@ -27,7 +27,8 @@
 #                        Codex の読み取り専用は、そのままだと作業フォルダの外もどこでも読めるため（2026-10-05 に codex sandbox で確かめた）。
 #                        一覧は 1 行 1 つの絶対パス。~ はホーム、{uid} はユーザー ID、* はその場所にあるものすべて（. で始まるものも）、
 #                        先頭の ! は除外。# から後ろと空行は読まない。リンクは行き先に置き換え、ほかの場所の中に重なるものは省く。
-#                        作業フォルダ（-C）や codex の実行ファイルが一覧の場所の中にあるときは止める（親の deny が勝ち、読めなくなるため）
+#                        作業フォルダ（-C）や codex の実行ファイルが一覧の場所の中にあるときは止める（親の deny が勝ち、読めなくなるため）。
+#                        このときサンドボックスは -s ではなく -c sandbox_mode で渡す（-s を付けると権限のプロファイルが捨てられるため）
 #
 # 必ず付けるもの：-m・-c model_reasoning_effort・サンドボックス・--ignore-user-config・--disable memories・--json。
 #   --ignore-user-config で ~/.codex/config.toml（Codex 側のプラグインや既定のモデル）を読まない。認証は保たれる
@@ -241,6 +242,10 @@ fi
 if [ -n "$resume_id" ]; then
   # exec resume には -s と -C が無い。サンドボックスは設定の上書きで渡し、作業フォルダは cd で合わせる
   args+=(-c "sandbox_mode=\"$sandbox\"")
+elif [ "${#deny_paths[@]}" -gt 0 ]; then
+  # 読ませない場所を渡すときは -s を使わず、設定の上書きで渡す。-s を付けると、渡した権限のプロファイルが捨てられ、
+  # 組み込みの「全体を読める」読み取り専用になる（2026-10-06 に実機で確かめた。codex-cli 0.160.0）
+  args+=(-c "sandbox_mode=\"$sandbox\"" -C "$workdir")
 else
   args+=(-s "$sandbox" -C "$workdir")
 fi

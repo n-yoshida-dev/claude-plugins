@@ -337,6 +337,10 @@ check "権限のプロファイルを既定にする" has_seq -c 'default_permis
 check "全体は読み取りだけ、一覧の場所は deny の表を渡す（~ と {uid} を置き換え、コメントと空行は読まない）" \
   has_seq -c "permissions.codex_run_read_limited.filesystem={\":root\"=\"read\",\"$HOME/secret-a\"=\"deny\",\"/var/tmp/deny-$UID_NOW\"=\"deny\"}"
 check "読ませない場所の件数を標準エラーに出す" stderr_has "読ませない場所 2 件"
+# -s を付けると権限のプロファイルが捨てられる（2026-10-06 に実機で確かめた）ので、サンドボックスは -c で渡す
+check "読ませない場所を渡すときは -s を付けない" lacks -s
+check "読ませない場所を渡すときはサンドボックスを -c sandbox_mode で渡す" has_seq -c 'sandbox_mode="read-only"'
+check "読ませない場所を渡すときも作業フォルダは -C で渡す" has_seq -C "$T/work"
 
 run --use review --resume fake-thread-1 -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny.txt"
 check "resume でも権限のプロファイルを渡す" has_seq -c 'default_permissions="codex_run_read_limited"'
