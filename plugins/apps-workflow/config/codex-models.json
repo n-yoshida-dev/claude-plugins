@@ -1,5 +1,5 @@
 {
-  "about": "用途ごとに Codex のモデルと考える深さを決める表。codex-run.sh --use <用途> で引く。モデルは自動では乗り換えない（新しいモデルが良いとは限らず、使用量も変わるため）。変えるときは比べてから、model・effort・status・why と checkedAt を直す",
+  "about": "用途ごとに Codex のモデルと考える深さを決める表。codex-run.sh --use <用途> で引く。モデルは自動では乗り換えない（新しいモデルが良いとは限らず、使用量も変わるため）。変えるときは比べてから、model・effort・status・why と checkedAt を直す。比べ終えたモデルは、採らなかった場合も knownModels に足す（足さないと新しいモデルの知らせが出続ける）",
   "checkedAt": "2026-10-05",
   "source": "モデルの名前と一覧は ~/.codex/models_cache.json（codex-cli 0.160.0、2026-10-05 に Codex が取得したもの）。用途ごとの割り当ては比べておらず、2026-10-02 から使ってきた GPT-6 Astra・high をそのまま入れている（比べる判断は Beads ops-h49.6）",
   "knownModels": [

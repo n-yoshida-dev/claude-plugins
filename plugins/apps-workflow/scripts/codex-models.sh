@@ -8,7 +8,7 @@
 # 呼び元： codex-run.sh。単体で叩いて、表の中身や新しいモデルの有無を確かめてもよい
 # 表の場所：環境変数 CODEX_MODELS_FILE、無ければこのプラグインの config/codex-models.json
 # モデル一覧：${CODEX_HOME:-~/.codex}/models_cache.json（Codex が自分で取りに行って保存するもの）
-# 終了コード：0 成功 / 1 表かモデル一覧が JSON として読めない / 2 指定の誤り・用途が表に無い
+# 終了コード：0 成功 / 1 表かモデル一覧が JSON として読めない・一覧の形が想定と違う / 2 指定の誤り・用途が表に無い
 #
 # check が知らせること（どれも知らせるだけで、表は書き換えない）：
 #   - 一覧に、表の knownModels に無いモデルがある（新しいモデルが出た）。一覧で隠されているモデル（visibility が list でない）は数えない
@@ -59,9 +59,13 @@ check() {
     echo "Codex のモデル一覧（$CACHE）が読めないので、新しいモデルが出ていないかの確認を飛ばしました"
     return 0
   fi
+  # 一覧は Codex の内部のファイルで、形が変わることがある。models が配列でない・slug の無いモデルがあるときは、
+  # 「全部消えた」と誤って知らせないよう、照合に失敗したとして扱う
   jq -r --slurpfile t "$TABLE" '
-    $t[0] as $tab
-    | (.models // []) as $all
+    if (.models | type) != "array" or any(.models[]; (.slug | type) != "string")
+      then error("models が「slug を持つモデルの配列」になっていません") else . end
+    | $t[0] as $tab
+    | .models as $all
     | [$all[] | select(.visibility == "list") | .slug] as $listed
     | [$listed[] | . as $s | select(($tab.knownModels // []) | index($s) == null)] as $new
     | ($tab.uses | to_entries | group_by(.value.model)
@@ -76,7 +80,7 @@ check() {
           elif $m.upgrade != null then
             "表の用途 \($u.uses) が使う \($u.model) に乗り換えの案内があります: \($m.upgrade.migration_markdown // "（本文なし）")（廃止 \($m.upgrade.retirement_at // "日付なし")・乗り換え先 \($m.upgrade.model // "不明")）"
           else empty end)
-  ' "$CACHE" || { echo "codex-models.sh: Codex のモデル一覧が JSON として読めません: $CACHE" >&2; exit 1; }
+  ' "$CACHE" || { echo "codex-models.sh: Codex のモデル一覧が読めないか、形が想定と違います: $CACHE" >&2; exit 1; }
 }
 
 case "${1:-}" in

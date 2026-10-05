@@ -92,6 +92,10 @@ make_cache codex-gone '{"models":[{"slug":"fake-sol","visibility":"list","upgrad
 make_cache codex-upgrade '{"models":[{"slug":"fake-astra","visibility":"list","upgrade":{"model":"fake-sol","migration_markdown":"偽の廃止のお知らせ","retirement_at":"2026-12-31T00:00:00Z"}},{"slug":"fake-sol","visibility":"list","upgrade":null}]}'
 # JSON として壊れた一覧
 make_cache codex-broken '{ 壊れている'
+# JSON としては読めるが、形が変わった一覧（models の欄が無い）
+make_cache codex-schema '{"items":[{"slug":"fake-astra","visibility":"list"}]}'
+# models はあるが、slug の無いモデルが混ざった一覧
+make_cache codex-noslug '{"models":[{"id":"fake-astra","visibility":"list"},{"slug":"fake-sol","visibility":"list","upgrade":null}]}'
 # 一覧が無いフォルダ
 mkdir -p "$T/codex-none"
 export CODEX_HOME="$T/codex-home"
@@ -303,6 +307,15 @@ check "一覧が無くても呼び出しは続ける" status_is 0
 CODEX_HOME="$T/codex-broken" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work"
 check "一覧が壊れていれば照合に失敗したと知らせる" stderr_has "照合に失敗しました"
 check "一覧が壊れていても呼び出しは続ける" status_is 0
+
+CODEX_HOME="$T/codex-schema" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work"
+check "一覧の形が変わったら照合に失敗したと知らせる" stderr_has "照合に失敗しました"
+check "一覧の形が変わっても「一覧にありません」と誤って知らせない" stderr_lacks "一覧にありません"
+check "一覧の形が変わっても呼び出しは続ける" status_is 0
+
+CODEX_HOME="$T/codex-noslug" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work"
+check "slug の無いモデルが混ざったら照合に失敗したと知らせる" stderr_has "照合に失敗しました"
+check "slug の無いモデルが混ざっても「一覧にありません」と誤って知らせない" stderr_lacks "一覧にありません"
 
 echo "--- codex-run.sh：前回の続きを聞く ---"
 
