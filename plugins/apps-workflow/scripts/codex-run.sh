@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
-# Codex（既定は GPT-6 Astra）を毎回同じ条件で呼ぶ共通の入口
+# Codex を毎回同じ条件で呼ぶ共通の入口。どのモデルで動くかは、呼ぶたびに用途かモデルで決める
 #
 # 使い方：
-#   新しく頼む：      bash codex-run.sh -s <サンドボックス> -f <依頼書.md> -o <結果.md> [任意の指定]
-#   前回の続きを聞く：bash codex-run.sh --resume <thread_id> -s read-only -f <依頼書.md> -o <結果.md> [任意の指定]
+#   新しく頼む：      bash codex-run.sh --use <用途> -s <サンドボックス> -f <依頼書.md> -o <結果.md> [任意の指定]
+#   前回の続きを聞く：bash codex-run.sh --use <用途> --resume <thread_id> -s read-only -f <依頼書.md> -o <結果.md> [任意の指定]
 #
 # 必須：
+#   --use <用途>         用途ごとのモデルの表（config/codex-models.json）からモデルと考える深さを引く。用途は design / screen / review / implement
+#     または -m と -e    表を使わずにモデル（-m）と考える深さ（-e）を両方指定する
+#                        どちらも無ければ codex を呼ばずに止める（~/.codex/config.toml の既定は数日で変わった実績があり、頼らないため）
 #   -s <サンドボックス>  Codex が実行するコマンドの許す範囲。read-only か workspace-write。
 #                        danger-full-access は受け付けない（Codex の中の操作には Claude 側のフックが効かないため）
 #   -f <ファイル>        依頼文。標準入力から codex に渡す（コマンドの引数に本文を書くと、dangerous-bash-guard が本文の語に反応して止めることがあるため）
 #   -o <ファイル>        Codex の最後の返答を書く先。codex が成功したときだけ書き換える
 # 任意：
-#   -e <effort>          考える深さ。既定 high（~/.codex/config.toml の既定は数日で変わった実績があるので頼らない）
-#   -m <モデル>          既定 gpt-6-astra
+#   -m <モデル>          --use と一緒に使うと、表のモデルを上書きする
+#   -e <effort>          --use と一緒に使うと、表の考える深さを上書きする
 #   -C <フォルダ>        Codex の作業フォルダ。既定は今いるフォルダ
 #   --schema <ファイル>  最後の返答の形を JSON Schema で縛る（codex の --output-schema）
 #   --events <ファイル>  codex が出す出来事（JSONL）を残す先。省略時は一時ファイルに書いて終わったら消す
@@ -24,9 +27,13 @@
 #   --ignore-user-config で ~/.codex/config.toml（Codex 側のプラグインや既定のモデル）を読まない。認証は保たれる
 #   resume には -s が無いので、サンドボックスは -c sandbox_mode で渡す
 #
+# 呼ぶ前に、表と Codex の手元のモデル一覧を照らす（codex-models.sh check）。新しいモデルが出た・表のモデルが消えた・廃止の予定が付いた、
+#   を知らせるだけで、表は書き換えず、呼び出しも止めない。知らせを見たら、比べてから人が表を直す
+#
 # 出力：
-#   標準出力に「結果: <パス>」「thread_id: <id>」「使用量: <JSON>」の 3 行。Codex の返答の本文は -o のファイルにだけ書く
-#   標準エラーに codex の警告と、失敗したときの理由
+#   標準出力に「結果: <パス>」「thread_id: <id>」「使用量: <JSON>」の 3 行。モデルの知らせがあれば「知らせ: <n> 件」を 4 行目に足す。
+#   Codex の返答の本文は -o のファイルにだけ書く
+#   標準エラーに、使ったモデルと出どころ、モデルの知らせの本文、codex の警告、失敗したときの理由
 # 終了コード：0 成功 / 1 codex の失敗・返答なし / 2 指定の誤り（このときは codex を呼ばないので利用枠を使わない）
 #
 # 方針の出どころ：ops の docs/2026-10-04-マルチモデル協調の採用判断.md §7「共通の土台」と §8 手順 3
@@ -34,14 +41,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 既定値。モデルと考える深さは呼ぶたびに明示する決まり（apps の CLAUDE.md）なので、ここで必ず値を持たせる
-DEFAULT_MODEL="gpt-6-astra"
-DEFAULT_EFFORT="high"
-
 # 使い方を標準エラーに出して終了する
 usage_error() {
   echo "codex-run.sh: $1" >&2
-  echo "使い方: bash codex-run.sh [--resume <thread_id>] -s <read-only|workspace-write> -f <依頼書> -o <結果> [-e effort] [-m モデル] [-C フォルダ] [--schema <ファイル>] [--events <ファイル>] [--keep-session] [--skip-git-repo-check]" >&2
+  echo "使い方: bash codex-run.sh (--use <用途> | -m <モデル> -e <effort>) [--resume <thread_id>] -s <read-only|workspace-write> -f <依頼書> -o <結果> [-C フォルダ] [--schema <ファイル>] [--events <ファイル>] [--keep-session] [--skip-git-repo-check]" >&2
   exit 2
 }
 
@@ -58,8 +61,9 @@ need_value() {
   [ "$2" -ge 2 ] || usage_error "$1 に値がありません"
 }
 
-model="$DEFAULT_MODEL"
-effort="$DEFAULT_EFFORT"
+use=""
+model=""
+effort=""
 sandbox=""
 prompt_file=""
 out_file=""
@@ -72,6 +76,7 @@ skip_git_check=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --use) need_value "$1" $#; use="$2"; shift 2 ;;
     -s) need_value "$1" $#; sandbox="$2"; shift 2 ;;
     -f) need_value "$1" $#; prompt_file="$2"; shift 2 ;;
     -o) need_value "$1" $#; out_file="$2"; shift 2 ;;
@@ -101,6 +106,19 @@ if [ ! -f "$prompt_file" ] || [ ! -r "$prompt_file" ]; then
   usage_error "依頼書が読めません: $prompt_file"
 fi
 [ -s "$prompt_file" ] || usage_error "依頼書が空です: $prompt_file"
+
+# モデルと考える深さを決める。用途があれば表から引き、-m・-e があればそれで上書きする
+if [ -n "$use" ]; then
+  resolved="$(bash "$SCRIPT_DIR/codex-models.sh" resolve "$use")" || exit 2
+  IFS=$'\t' read -r table_model table_effort <<< "$resolved"
+  [ -n "$model" ] || model="$table_model"
+  [ -n "$effort" ] || effort="$table_effort"
+  model_source="表の用途 $use"
+else
+  [ -n "$model" ] || usage_error "用途（--use）か、モデル（-m）と考える深さ（-e）を指定してください。用途: $(bash "$SCRIPT_DIR/codex-models.sh" uses)"
+  [ -n "$effort" ] || usage_error "-m で指定するときは -e（考える深さ）も指定してください"
+  model_source="-m・-e の指定"
+fi
 # -c に TOML の値として埋め込むので、引用符などが混ざらないよう文字の種類を絞る
 [[ "$effort" =~ ^[a-z]+$ ]] || usage_error "-e は英小文字だけで指定してください（指定: $effort）"
 [[ "$model" =~ ^[A-Za-z0-9._-]+$ ]] || usage_error "-m に使えない文字があります（指定: $model）"
@@ -148,7 +166,20 @@ args+=(--ignore-user-config --disable memories --json -o "$tmp_out")
 # 最後の「-」は「依頼文を標準入力から読む」の意味
 args+=(-)
 
-echo "codex-run.sh: $bin / model=$model / effort=$effort / sandbox=$sandbox${resume_id:+ / resume=$resume_id}" >&2
+echo "codex-run.sh: $bin / model=$model / effort=$effort（$model_source）/ sandbox=$sandbox${resume_id:+ / resume=$resume_id}" >&2
+
+# 表と Codex の手元のモデル一覧を照らす。知らせるだけで、呼び出しは止めない
+notice_count=0
+if notices="$(bash "$SCRIPT_DIR/codex-models.sh" check)"; then
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    echo "codex-run.sh: 知らせ: $line" >&2
+    notice_count=$((notice_count + 1))
+  done <<< "$notices"
+else
+  echo "codex-run.sh: 知らせ: モデルの表と一覧の照合に失敗しました（理由は上の行。呼び出しは続けます）" >&2
+  notice_count=1
+fi
 
 cd "$workdir" || { echo "codex-run.sh: 作業フォルダに移れません: $workdir" >&2; exit 1; }
 "$bin" "${args[@]}" < "$prompt_file" > "$events_file"
@@ -180,3 +211,5 @@ else
   echo "thread_id: ${thread_id:-（出来事の記録に見当たらない）}（--ephemeral のため記録は残していない。続きを聞くなら次から --keep-session）"
 fi
 echo "使用量: ${usage:-（出来事の記録に見当たらない）}"
+# 標準エラーを捨てる呼び方でも、知らせがあったことには気づけるようにする
+[ "$notice_count" -eq 0 ] || echo "知らせ: $notice_count 件（モデルの表と一覧の照合。本文は標準エラー）"
