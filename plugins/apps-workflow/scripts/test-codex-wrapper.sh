@@ -397,13 +397,17 @@ echo $? > "$T/status"
 check "codex の実行ファイルが読ませない場所の中なら終了コード 2" status_is 2
 check "codex の実行ファイルが読ませない場所の中なら codex を呼ばない" not_called
 
-# 本物の一覧（config/codex-review-deny-read.txt）も読める。作業フォルダは一覧の外の / にする
-run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C / --deny-read-list "$SCRIPT_DIR/../config/codex-review-deny-read.txt"
+# 本物の一覧（config/codex-review-deny-read.txt）も読める。ホームの作りは機械ごとに違う（CI の機械には ~/workspace が無い）ので、
+# この PC と同じ作りの偽のホームで確かめる。作業フォルダは一覧の外の / にする
+FH3="$T/fakehome3"
+mkdir -p "$FH3/workspace" "$FH3/.ssh" "$FH3/.vscode-server"
+HOME="$FH3" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C / --deny-read-list "$SCRIPT_DIR/../config/codex-review-deny-read.txt"
 check "本物の読ませない場所の一覧を読める" status_is 0
-check "本物の一覧で ~/workspace を読ませない" grep -qF -- "\"$HOME/workspace\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で ~/workspace を読ませない" grep -qF -- "\"$FH3/workspace\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で ~/.ssh を読ませない" grep -qF -- "\"$FH3/.ssh\"=\"deny\"" "$FAKE/args"
 check "本物の一覧で Claude の作業用フォルダを読ませない" grep -qF -- "\"/tmp/claude-$UID_NOW\"=\"deny\"" "$FAKE/args"
 check "本物の一覧で Windows のドライブ（/mnt）を読ませない" grep -qF -- "\"/mnt\"=\"deny\"" "$FAKE/args"
-check "本物の一覧で codex の実行ファイルのある .vscode-server は読める" args_lack "\"$HOME/.vscode-server\"=\"deny\""
+check "本物の一覧で codex の実行ファイルのある .vscode-server は読める" args_lack "\"$FH3/.vscode-server\"=\"deny\""
 
 echo "--- codex-run.sh：前回の続きを聞く ---"
 
