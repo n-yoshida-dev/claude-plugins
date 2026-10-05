@@ -16,7 +16,8 @@
 #   -C <フォルダ>        Codex の作業フォルダ。既定は今いるフォルダ
 #   --schema <ファイル>  最後の返答の形を JSON Schema で縛る（codex の --output-schema）
 #   --events <ファイル>  codex が出す出来事（JSONL）を残す先。省略時は一時ファイルに書いて終わったら消す
-#   --keep-session       会話の記録を ~/.codex/sessions に残す（--ephemeral を付けない）。あとで --resume するときに付ける
+#   --keep-session       会話の記録を ~/.codex/sessions に残す（--ephemeral を付けない）。あとで --resume するときに付ける。
+#                        --resume した回は、--ephemeral を付けても元の会話の記録に追記される（2026-10-05 に実機で確認）
 #   --skip-git-repo-check  Git の管理外のフォルダで動かす
 #
 # 必ず付けるもの：-m・-c model_reasoning_effort・サンドボックス・--ignore-user-config・--disable memories・--json。
@@ -165,7 +166,8 @@ mv "$tmp_out" "$out_file" || { echo "codex-run.sh: 結果を $out_file に置け
 thread_id="$(jq -r 'select(.type == "thread.started") | .thread_id' "$events_file" 2>/dev/null | tail -n 1)"
 usage="$(jq -c 'select(.type == "turn.completed") | .usage' "$events_file" 2>/dev/null | tail -n 1)"
 echo "結果: $out_file"
-if [ "$keep_session" -eq 1 ]; then
+# resume した回は --ephemeral でも元の記録に追記されるので、「残していない」とは書かない
+if [ "$keep_session" -eq 1 ] || [ -n "$resume_id" ]; then
   echo "thread_id: ${thread_id:-（出来事の記録に見当たらない）}"
 else
   echo "thread_id: ${thread_id:-（出来事の記録に見当たらない）}（--ephemeral のため記録は残していない。続きを聞くなら次から --keep-session）"

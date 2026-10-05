@@ -46,7 +46,8 @@ if [ "${FAKE_EXIT:-0}" -ne 0 ]; then
   echo '{"type":"turn.failed","error":{"message":"偽の失敗"}}'
   exit "$FAKE_EXIT"
 fi
-echo '{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":2,"output_tokens":5}}'
+# 使用量の項目は codex-cli 0.160.0 の実機（2026-10-05）と同じ
+echo '{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":2,"cache_write_input_tokens":0,"output_tokens":5,"reasoning_output_tokens":1}}'
 printf '偽の返答\n' > "$out"
 EOS
 chmod +x "$FAKE/codex"
@@ -85,6 +86,7 @@ run() {
 
 status_is() { [ "$(cat "$T/status")" = "$1" ]; }
 stdout_has() { grep -qF -- "$1" "$T/stdout"; }
+stdout_lacks() { ! grep -qF -- "$1" "$T/stdout"; }
 
 # codex-bin.sh がエラーで終わるか（CODEX_BIN の指定あり／HOME を差し替えて拡張機能を探す、の 2 通り）
 bin_fails_with() { ! CODEX_BIN="$1" bash "$BIN_SH" > /dev/null 2>&1; }
@@ -139,7 +141,8 @@ check "作業フォルダで codex が動く" test "$(cat "$FAKE/cwd")" = "$T/wo
 check "返答を -o のファイルに置く" test "$(cat "$T/out.md")" = "偽の返答"
 check "標準出力に結果のパス" stdout_has "結果: $T/out.md"
 check "標準出力に thread_id" stdout_has "thread_id: fake-thread-1"
-check "標準出力に使用量" stdout_has '使用量: {"input_tokens":10,"cached_input_tokens":2,"output_tokens":5}'
+check "標準出力に使用量" stdout_has '使用量: {"input_tokens":10,"cached_input_tokens":2,"cache_write_input_tokens":0,"output_tokens":5,"reasoning_output_tokens":1}'
+check "--ephemeral の回は「記録は残していない」と表示する" stdout_has "記録は残していない"
 check "--schema が無ければ --output-schema を付けない" lacks --output-schema
 check "一時フォルダを残さない" test -z "$(ls -A "$T/tmp")"
 
@@ -166,6 +169,10 @@ check "resume には -C を付けない（codex に無い）" lacks -C
 check "resume でも作業フォルダで codex が動く" test "$(cat "$FAKE/cwd")" = "$T/work"
 check "thread_id のあとに -（標準入力）" test "$(tail -n 2 "$FAKE/args" | tr '\n' ' ')" = "fake-thread-1 - "
 check "resume でもモデルと考える深さを明示する" has_seq -m gpt-6-astra -c 'model_reasoning_effort="high"'
+
+# resume は --ephemeral でも元の記録に追記される（2026-10-05 実機）ので、「残していない」と表示しない
+run --resume fake-thread-1 -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work"
+check "resume では「記録は残していない」と表示しない" stdout_lacks "記録は残していない"
 
 echo "--- codex-run.sh：codex の失敗 ---"
 

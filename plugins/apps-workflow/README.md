@@ -49,8 +49,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" -s read-only -f 依頼書.md -
 - 時間がかかることがあるので、Claude は Bash のバックグラウンド実行で呼び、完了の通知を待つ
 - ops と `data/` のある場所では使わない（Codex の中の操作には Claude 側のフックが効かない）
 - 指定の一覧は `bash codex-run.sh --help`
-- 未確認（v1.6.0 時点）：`--json` の出来事の形（thread_id と使用量の取り出し）、`exec resume` に `-c sandbox_mode` と標準入力が通るか。
-  実機で確かめる手順は ops の `docs/2026-10-04-マルチモデル協調の採用判断.md` §8 手順 4
+- 実機で確かめたこと（2026-10-05、codex-cli 0.160.0）：読み取り専用の依頼、`--schema` 付きの依頼、`--resume` の 3 つが通る。
+  会話の記録上もモデル `gpt-6-astra`・考える深さ `high`・サンドボックス `read-only`・承認 `never` で動いた。
+  `--json` の出来事から thread_id（`thread.started`）と使用量（`turn.completed` の `usage`）を取り出せる。
+  **`--resume` した回は `--ephemeral` を付けても元の会話の記録に追記される**（`~/.codex/sessions` に残る。消すかは利用者が決める）
+- 未確認：サンドボックスが実際にどこまで書き込みを止めるか（以前 bubblewrap が無いという警告が出ていた。今回の 3 回では出ていない）
 
 ## 前提
 
