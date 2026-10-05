@@ -1,0 +1,68 @@
+{
+  "about": "外部のリポジトリから写したプロンプトとスキーマの一覧。scripts/test-prompts.sh が、ファイル・ライセンス・冒頭の注記がそろっているかと、改変なし（modified が false）のファイルの本文がここの bodySha256 と同じかを確かめる。.md の本文は冒頭の注記（<!-- から --> と、その次の空行）を除いた部分",
+  "decidedIn": "ops の docs/2026-10-04-マルチモデル協調の採用判断.md「決定」節の問い 1（採点は slot-machine から借りる）・2（0-to-1 の検証プロンプトは写す）・4（Crazytieguy の fork は plan-review.md だけ）。本人の回答は Beads ops-h49.4",
+  "copiedAt": "2026-10-05",
+  "files": [
+    {
+      "path": "slot-machine/coding-2-reviewer.md",
+      "repo": "pejmanjohn/slot-machine",
+      "upstreamPath": "profiles/coding/2-reviewer.md",
+      "commit": "8519b1f647b3a4c3e3cb100a26caf8a1f9fe5c6a",
+      "license": "MIT",
+      "licenseFile": "slot-machine/LICENSE.slot-machine",
+      "modified": false,
+      "bodySha256": "59f68b81f6e53377cf246eb237acf45cbe0e6c78177a0bc05d38870150c2afb3"
+    },
+    {
+      "path": "slot-machine/coding-3-judge.md",
+      "repo": "pejmanjohn/slot-machine",
+      "upstreamPath": "profiles/coding/3-judge.md",
+      "commit": "8519b1f647b3a4c3e3cb100a26caf8a1f9fe5c6a",
+      "license": "MIT",
+      "licenseFile": "slot-machine/LICENSE.slot-machine",
+      "modified": false,
+      "bodySha256": "4ea13a04be7a01c3f820653cb35c0a395dd25b9f54a890938823d5c3b68f153a"
+    },
+    {
+      "path": "slot-machine/writing-2-reviewer.md",
+      "repo": "pejmanjohn/slot-machine",
+      "upstreamPath": "profiles/writing/2-reviewer.md",
+      "commit": "8519b1f647b3a4c3e3cb100a26caf8a1f9fe5c6a",
+      "license": "MIT",
+      "licenseFile": "slot-machine/LICENSE.slot-machine",
+      "modified": false,
+      "bodySha256": "2083cb931c97ce0a6f3b62d47cfb46b369929a98f9720cbd6a425e26860a07aa"
+    },
+    {
+      "path": "codex-pr-review/verifier-claude-prompt.md",
+      "repo": "0-to-1-Labs/codex-pr-review",
+      "upstreamPath": "scripts/verifier-claude-prompt.md",
+      "commit": "0e76bed7290a226a8c66043046c8a545ab06d46e",
+      "license": "MIT",
+      "licenseFile": "codex-pr-review/LICENSE.codex-pr-review",
+      "modified": false,
+      "bodySha256": "d626d70bb1f10d0fd9d9c7c35792889ab39a028eec65ac1faa36a13d774f0de0"
+    },
+    {
+      "path": "codex-pr-review/verifier-output-schema.json",
+      "repo": "0-to-1-Labs/codex-pr-review",
+      "upstreamPath": "scripts/verifier-output-schema.json",
+      "commit": "0e76bed7290a226a8c66043046c8a545ab06d46e",
+      "license": "MIT",
+      "licenseFile": "codex-pr-review/LICENSE.codex-pr-review",
+      "modified": false,
+      "bodySha256": "b2aeb2467f7114abe0dbb3983d72f1aeaedff57fcbbe831551fd6bdce5ea45bd"
+    },
+    {
+      "path": "crazytieguy-codex-plugin-cc/plan-review.md",
+      "repo": "Crazytieguy/codex-plugin-cc",
+      "upstreamPath": "plugins/codex/prompts/plan-review.md",
+      "commit": "2839c379eb3fdc04440aa96765a6f8dd2492e66c",
+      "license": "Apache-2.0",
+      "licenseFile": "crazytieguy-codex-plugin-cc/LICENSE.crazytieguy-codex-plugin-cc",
+      "noticeFile": "crazytieguy-codex-plugin-cc/NOTICE.crazytieguy-codex-plugin-cc",
+      "modified": false,
+      "bodySha256": "4998cb7d6c990f9e8b301d13fd7c5d7ee60a5e917c0688ea9e580c6c02614a0f"
+    }
+  ]
+}
