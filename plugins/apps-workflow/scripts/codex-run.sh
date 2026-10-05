@@ -177,9 +177,11 @@ if [ -n "$deny_list_file" ]; then
     if [ "$exclude" -eq 1 ]; then
       excludes+=("$(realpath -m -- "$entry")")
     elif [[ "$entry" == *"*"* ]]; then
-      # * はその場所にあるもの（. で始まるものも含む）すべてに広げる
+      # * はその場所にあるもの（. で始まるものも含む）すべてに広げる。空白を含むパスを割らないよう IFS を空にする
+      old_ifs="$IFS"; IFS=''
       # shellcheck disable=SC2206
       matched=($entry)
+      IFS="$old_ifs"
       for m in "${matched[@]}"; do candidates+=("$m"); done
     else
       candidates+=("$entry")
@@ -206,6 +208,10 @@ if [ -n "$deny_list_file" ]; then
     [ "$keep" -eq 0 ] || deny_paths+=("$p")
   done
   [ "${#deny_paths[@]}" -gt 0 ] || usage_error "--deny-read-list に場所が 1 つもありません: $deny_list_file"
+  # * で広げた名前やリンクの行き先にも、TOML の文字列を壊す文字（引用符・バックスラッシュ・制御文字）が無いかを確かめる
+  for d in "${deny_paths[@]}"; do
+    [[ "$d" =~ ^[^\"\\[:cntrl:]]+$ ]] || usage_error "読ませない場所に使えない文字があります（* で広げた名前かリンクの行き先）: $d"
+  done
 
   for d in "${deny_paths[@]}"; do
     case "$workdir/" in

@@ -392,6 +392,18 @@ check "外を指すリンクは行き先を読ませない" grep -qF -- "\"$T/el
 check "リンクそのものの名前では書かない" args_lack "link-outside"
 check "ほかの読ませない場所の中に重なるものは省く" args_lack "\"$FH/a/inner\"=\"deny\""
 
+# 空白を含むパスの * は、空白で割らずに広げる
+mkdir -p "$T/sp ace/x" "$T/sp ace/y"
+printf '%s\n' "$T/sp ace/*" > "$T/deny-space.txt"
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-space.txt"
+check "空白を含むパスの * を割らずに広げる" grep -qF -- "\"$T/sp ace/x\"=\"deny\",\"$T/sp ace/y\"=\"deny\"" "$FAKE/args"
+
+# * で広げた名前に引用符があれば、TOML を壊すので止める
+mkdir -p "$T/fakehome-q/a\"b"
+HOME="$T/fakehome-q" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-glob.txt"
+check "* で広げた名前に引用符があれば終了コード 2" status_is 2
+check "* で広げた名前に引用符があれば codex を呼ばない" not_called
+
 # codex の実行ファイルが読ませない場所の中なら止める
 mkdir -p "$T/fakehome2/bin"
 cp "$FAKE/codex" "$T/fakehome2/bin/codex"
@@ -404,14 +416,17 @@ check "codex の実行ファイルが読ませない場所の中なら codex を
 # 本物の一覧（config/codex-review-deny-read.txt）も読める。ホームの作りは機械ごとに違う（CI の機械には ~/workspace が無い）ので、
 # この PC と同じ作りの偽のホームで確かめる。作業フォルダは一覧の外の / にする
 FH3="$T/fakehome3"
-mkdir -p "$FH3/workspace" "$FH3/.ssh" "$FH3/.vscode-server"
+mkdir -p "$FH3/workspace" "$FH3/.ssh" "$FH3/.vscode-server/extensions" "$FH3/.vscode-server/data" "$FH3/.vscode-server/bin"
 HOME="$FH3" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C / --deny-read-list "$SCRIPT_DIR/../config/codex-review-deny-read.txt"
 check "本物の読ませない場所の一覧を読める" status_is 0
 check "本物の一覧で ~/workspace を読ませない" grep -qF -- "\"$FH3/workspace\"=\"deny\"" "$FAKE/args"
 check "本物の一覧で ~/.ssh を読ませない" grep -qF -- "\"$FH3/.ssh\"=\"deny\"" "$FAKE/args"
 check "本物の一覧で Claude の作業用フォルダを読ませない" grep -qF -- "\"/tmp/claude-$UID_NOW\"=\"deny\"" "$FAKE/args"
 check "本物の一覧で Windows のドライブ（/mnt）を読ませない" grep -qF -- "\"/mnt\"=\"deny\"" "$FAKE/args"
-check "本物の一覧で codex の実行ファイルのある .vscode-server は読める" args_lack "\"$FH3/.vscode-server\"=\"deny\""
+check "本物の一覧で .vscode-server そのものは丸ごとは塞がない" args_lack "\"$FH3/.vscode-server\"=\"deny\""
+check "本物の一覧で codex の実行ファイルのある .vscode-server/extensions は読める" args_lack "\"$FH3/.vscode-server/extensions\"=\"deny\""
+check "本物の一覧で編集の履歴のある .vscode-server/data は読ませない" grep -qF -- "\"$FH3/.vscode-server/data\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で .vscode-server/bin は読ませない" grep -qF -- "\"$FH3/.vscode-server/bin\"=\"deny\"" "$FAKE/args"
 
 echo "--- codex-run.sh：前回の続きを聞く ---"
 
