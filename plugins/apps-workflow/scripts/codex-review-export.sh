@@ -6,14 +6,14 @@
 # 作るもの：
 #   - 書き出し先に、リポジトリの HEAD の中身を展開する（git archive。gitignore の対象やコミットしていないファイルは入らない）
 #   - レビューする文書だけは、今の中身で上書きする（未コミットの変更を含めてレビューするため）
-#   - PRIVATE.md・*.local.*・.env* という名前のファイルは、Git で管理していても書き出しから外す（見本の .env.example なども外れる）
+#   - PRIVATE.md・*.local.*・.env* という名前のファイルとリンクは、Git で管理していても書き出しから外す（見本の .env.example なども外れる）
 # 出力：  標準出力に書き出し先の絶対パスを 1 行。外したファイルがあれば、標準エラーに 1 行ずつ
 # 終了コード：0 成功 / 1 書き出しの失敗 / 2 指定の誤り（書き出し先が空でない・文書がリポジトリの外・コミットが無いなど）
 #
 # なぜ：Codex は読み取り専用でも、作業フォルダのファイルを読みに行ける。借りてきた plan-review.md は「計画が触れるファイルを道具で確かめよ」と指示する。
 #   リポジトリそのものを作業フォルダにすると、gitignore の PRIVATE.md などの実データが OpenAI に渡りうる（2026-10-05、PR #26 の受け入れレビュー）
-# 残る穴：Codex の読み取り専用が、作業フォルダの外を絶対パスで読めるかは確かめていない（判断文書 §9）。
-#   文書が非公開の場所を絶対パスで書いていれば、そこが読まれうる
+# 書き出しだけでは足りない：Codex の読み取り専用は作業フォルダの外もどこでも読める（2026-10-05 に codex sandbox で確かめた）。
+#   外を読ませないのは、codex-run.sh --deny-read-list と config/codex-review-deny-read.txt の役目
 set -uo pipefail
 
 # 指定の誤りを標準エラーに出して終了する
@@ -52,6 +52,6 @@ fi
 while IFS= read -r -d '' f; do
   rm -f -- "$f" || { echo "codex-review-export.sh: 外せません: $f" >&2; exit 1; }
   echo "codex-review-export.sh: 書き出しから外した: ${f#"$out"/}" >&2
-done < <(find "$out" -type f \( -name 'PRIVATE.md' -o -name '*.local.*' -o -name '.env*' \) -print0)
+done < <(find "$out" \( -type f -o -type l \) \( -name 'PRIVATE.md' -o -name '*.local.*' -o -name '.env*' \) -print0)
 
 printf '%s\n' "$out"

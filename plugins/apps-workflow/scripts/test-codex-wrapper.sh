@@ -119,6 +119,11 @@ lacks() {
   ! grep -qxF -- "$1" "$FAKE/args"
 }
 
+# 偽の codex が受け取った引数のどこにも、指定の文字列が無いか（行の一部でも見る）
+args_lack() {
+  ! grep -qF -- "$1" "$FAKE/args"
+}
+
 # 偽の codex が呼ばれていないか（前回の記録を消してから実行する前提）
 not_called() {
   [ ! -e "$FAKE/args" ]
@@ -316,6 +321,89 @@ check "一覧の形が変わっても呼び出しは続ける" status_is 0
 CODEX_HOME="$T/codex-noslug" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work"
 check "slug の無いモデルが混ざったら照合に失敗したと知らせる" stderr_has "照合に失敗しました"
 check "slug の無いモデルが混ざっても「一覧にありません」と誤って知らせない" stderr_lacks "一覧にありません"
+
+echo "--- codex-run.sh：読ませない場所（--deny-read-list） ---"
+
+cat > "$T/deny.txt" <<'EOS'
+# コメントの行
+~/secret-a   # 行の後ろのコメント
+
+/var/tmp/deny-{uid}
+EOS
+UID_NOW="$(id -u)"
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny.txt"
+check "読ませない場所の一覧を渡せる" status_is 0
+check "権限のプロファイルを既定にする" has_seq -c 'default_permissions="codex_run_read_limited"'
+check "全体は読み取りだけ、一覧の場所は deny の表を渡す（~ と {uid} を置き換え、コメントと空行は読まない）" \
+  has_seq -c "permissions.codex_run_read_limited.filesystem={\":root\"=\"read\",\"$HOME/secret-a\"=\"deny\",\"/var/tmp/deny-$UID_NOW\"=\"deny\"}"
+check "読ませない場所の件数を標準エラーに出す" stderr_has "読ませない場所 2 件"
+
+run --use review --resume fake-thread-1 -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny.txt"
+check "resume でも権限のプロファイルを渡す" has_seq -c 'default_permissions="codex_run_read_limited"'
+
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work"
+check "一覧を渡さなければ権限のプロファイルを付けない" lacks 'default_permissions="codex_run_read_limited"'
+
+run --use review -s workspace-write -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny.txt"
+check "workspace-write とは一緒に使えない（終了コード 2）" status_is 2
+check "workspace-write と一緒なら codex を呼ばない" not_called
+
+printf 'relative/path\n' > "$T/deny-rel.txt"
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-rel.txt"
+check "相対パスの場所は終了コード 2" status_is 2
+
+printf '/tmp/a"b\n' > "$T/deny-quote.txt"
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-quote.txt"
+check "引用符の入った場所は終了コード 2" status_is 2
+check "引用符の入った場所では codex を呼ばない" not_called
+
+printf '%s\n' "$T" > "$T/deny-parent.txt"
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-parent.txt"
+check "作業フォルダが読ませない場所の中なら終了コード 2" status_is 2
+check "作業フォルダが読ませない場所の中なら codex を呼ばない" not_called
+
+printf '# コメントだけ\n' > "$T/deny-empty.txt"
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-empty.txt"
+check "場所が 1 つも無い一覧は終了コード 2" status_is 2
+
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/no-such.txt"
+check "一覧のファイルが無ければ終了コード 2" status_is 2
+
+# * と ! とリンクと重なり：偽のホームで確かめる
+FH="$T/fakehome"
+mkdir -p "$FH/a/inner" "$FH/keep" "$T/elsewhere"
+: > "$FH/.b"
+ln -s "$FH/a/inner" "$FH/link-inside"
+ln -s "$T/elsewhere" "$FH/link-outside"
+cat > "$T/deny-glob.txt" <<'EOS'
+~/*
+!~/keep
+EOS
+HOME="$FH" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-glob.txt"
+check "* と ! の一覧を渡せる" status_is 0
+check "* は . で始まるものも含めて広げる" grep -qF -- "\"$FH/.b\"=\"deny\"" "$FAKE/args"
+check "* で広げたフォルダを読ませない" grep -qF -- "\"$FH/a\"=\"deny\"" "$FAKE/args"
+check "! で除外したものは読ませない場所に入れない" args_lack "\"$FH/keep\"=\"deny\""
+check "外を指すリンクは行き先を読ませない" grep -qF -- "\"$T/elsewhere\"=\"deny\"" "$FAKE/args"
+check "リンクそのものの名前では書かない" args_lack "link-outside"
+check "ほかの読ませない場所の中に重なるものは省く" args_lack "\"$FH/a/inner\"=\"deny\""
+
+# codex の実行ファイルが読ませない場所の中なら止める
+mkdir -p "$T/fakehome2/bin"
+cp "$FAKE/codex" "$T/fakehome2/bin/codex"
+rm -f "$FAKE/args"
+HOME="$T/fakehome2" CODEX_BIN="$T/fakehome2/bin/codex" TMPDIR="$T/tmp" bash "$RUN_SH" --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-glob.txt" > "$T/stdout" 2> "$T/stderr"
+echo $? > "$T/status"
+check "codex の実行ファイルが読ませない場所の中なら終了コード 2" status_is 2
+check "codex の実行ファイルが読ませない場所の中なら codex を呼ばない" not_called
+
+# 本物の一覧（config/codex-review-deny-read.txt）も読める。作業フォルダは一覧の外の / にする
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C / --deny-read-list "$SCRIPT_DIR/../config/codex-review-deny-read.txt"
+check "本物の読ませない場所の一覧を読める" status_is 0
+check "本物の一覧で ~/workspace を読ませない" grep -qF -- "\"$HOME/workspace\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で Claude の作業用フォルダを読ませない" grep -qF -- "\"/tmp/claude-$UID_NOW\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で Windows のドライブ（/mnt）を読ませない" grep -qF -- "\"/mnt\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で codex の実行ファイルのある .vscode-server は読める" args_lack "\"$HOME/.vscode-server\"=\"deny\""
 
 echo "--- codex-run.sh：前回の続きを聞く ---"
 

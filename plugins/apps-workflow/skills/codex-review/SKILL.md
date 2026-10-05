@@ -31,14 +31,17 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-review-target.sh" "<文書のパス>"
   （ops・personal の中・ルートに `data/` のあるリポジトリ・PRIVATE.md・`*.local.*`・`.env*`・gitignore の対象・文書でないファイルを止めている）
 
 続けて、Codex に読ませる作業フォルダを、Git で管理しているファイルだけで作る。**Codex の作業フォルダにリポジトリそのものを渡さない。**
-Codex は読み取り専用でも作業フォルダのファイルを読みに行けるので、リポジトリそのものを渡すと、gitignore の PRIVATE.md などの実データが OpenAI に渡りうる。
+Codex は読み取り専用でも、作業フォルダの中も外もどこでも読める（2026-10-05 に `codex sandbox -P :read-only` で確かめた）。
+そこで、作業フォルダは書き出しにし、さらに 2 で読ませない場所の一覧（`config/codex-review-deny-read.txt`。ホームの直下・Windows のドライブ・Claude の作業用フォルダ）を渡して、そこを読めなくする。
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-review-export.sh" "$DOC" "$ROOT" "$W/tree"
+TREE="$(mktemp -d /tmp/codex-review.XXXXXX)"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-review-export.sh" "$DOC" "$ROOT" "$TREE"
 ```
 
-- 標準出力の書き出し先を控える。以下 `TREE`。中身はリポジトリの HEAD に、レビューする文書の今の中身を重ねたもの（PRIVATE.md・`*.local.*`・`.env*` の名前のファイルは、見本も含めて外れる）
-- 文書が、非公開の場所を絶対パスで書いているときは、Codex がそこを読みうる（作業フォルダの外を読めるかは未確認）。利用者に伝えてから進むかを聞く
+- 書き出しは Claude の作業用フォルダ（scratchpad）の**外**に作る。作業用フォルダは読ませない場所に入っていて、その中に作ると Codex が書き出しも読めなくなるため
+- 中身はリポジトリの HEAD に、レビューする文書の今の中身を重ねたもの（PRIVATE.md・`*.local.*`・`.env*` の名前のファイルは、見本も含めて外れる）。書き出しは /tmp に残るが、Git で管理しているファイルだけなので消さなくてよい
+- 読ませない場所の一覧の外（`/etc`・`/usr`・`/tmp` のほかのフォルダなど）は、Codex が読める
 - レビューした時点の文書の写しを残す（6 の再レビューで差分を取るため）：`cp "$DOC" "$W/doc-reviewed.md"`
 
 ## 2. Codex にレビューさせる
@@ -52,10 +55,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/promp
 Codex を呼ぶ。**Bash のバックグラウンド実行**で流し、完了の通知を待つ。通知が届く前に結果を書いたり、終わったと言ったりしない。
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f "$W/brief.md" -o "$W/review.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events.jsonl"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f "$W/brief.md" -o "$W/review.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events.jsonl" --deny-read-list "${CLAUDE_PLUGIN_ROOT}/config/codex-review-deny-read.txt"
 ```
 
 - `-C` は書き出し（`TREE`）。書き出しは Git のリポジトリではないので `--skip-git-repo-check` を付ける
+- `--deny-read-list` で、一覧の場所を Codex に読ませない（全体は読み取りだけ、一覧の場所は deny の権限のプロファイルを渡す）。外して呼ばない
 - `--keep-session` は 6 の再レビュー（同じ会話の続き）のため。標準出力の `thread_id` と `使用量` を控える
 - 標準出力に「知らせ: n 件」が出たら（新しいモデル・廃止の予定など）、標準エラーの本文を利用者に伝え、Beads に付箋を作る（`config/codex-models.json` を比べて直すかの判断）
 - 失敗したら（終了コード 1）、理由を伝えて止まる。勝手に考える深さやモデルを変えてやり直さない
@@ -140,6 +144,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/promp
 
 - 採否の欄には利用者の言葉をそのまま書く。言っていない理由を足さない。「おすすめどおり」なら「（利用者の言葉：「おすすめどおり」）」
 - 返事に出てこなかった指摘は「未回答」と書く。**おすすめで埋めない**（答えをもらっていない問いは回答済みにしない）。未回答の指摘は直さない
+- 利用者の言葉に生活の事実（家族・お金・住まい・健康・勤め先など）が入るときは、台帳と 6 の `decisions.md` には「PRIVATE.md 参照」とだけ書き、言葉そのものは PRIVATE.md に置く（apps の CLAUDE.md「個人情報の取り扱い」。台帳はコミットし、`decisions.md` は Codex に渡るため）
 - 採用した指摘だけ、Claude が文書を直す。直したら「対応」を埋める
 - 台帳と文書の変更は、作業ブランチでコミットし、PR は `apps-workflow:pr-flow` の手順で進める
 
@@ -148,8 +153,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/promp
 同じ会話の続きで、直した文書を Codex にもう一度読ませる。
 
 1. `$W/decisions.md` に、指摘ごとの採否と対応を書く（台帳の「指摘と採否」の写しでよい）
-2. レビューした時点の写しと比べて差分を取る：`diff -u "$W/doc-reviewed.md" "$DOC" > "$W/diff.txt"`（コミットしたあとでも取れる）。空なら、まだ直していないので再レビューしない
-3. 書き出しの中の文書を今の中身にする：`cp "$DOC" "$TREE/<ROOT からの文書の相対パス>"`
+2. 前に Codex に送った時点の写しと比べて差分を取る：`diff -u "$W/doc-reviewed.md" "$DOC" > "$W/diff.txt"`（コミットしたあとでも取れる。
+   `diff` は差分があると終了コード 1 を返すが、失敗ではない）。`diff.txt` が空なら、まだ直していないので再レビューしない
+3. 書き出しの中の文書と、写しを、今の中身にする（このあと Codex に送る中身を、次の再レビューの差分の起点にするため）：
+   `cp "$DOC" "$TREE/<ROOT からの文書の相対パス>"` と `cp "$DOC" "$W/doc-reviewed.md"`
 4. 依頼書を作る（このスキルの自作の `followup.md`。判断文書の問い 4 で `plan-review-followup.md` は写していない）：
 
 ```bash
@@ -159,15 +166,17 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/skill
 5. 2 と同じくバックグラウンドで、`thread_id` を続ける：
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review --resume "<thread_id>" -s read-only -f "$W/followup-brief.md" -o "$W/review-2.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events-2.jsonl"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review --resume "<thread_id>" -s read-only -f "$W/followup-brief.md" -o "$W/review-2.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events-2.jsonl" --deny-read-list "${CLAUDE_PLUGIN_ROOT}/config/codex-review-deny-read.txt"
 ```
 
-6. 新しい指摘があれば 3〜5 をくり返し、台帳に「## 再レビュー（YYYY-MM-DD）」の節を足す。採用した指摘の「解消／未解消」もそこに書く。
-   次の再レビューに備えて、写しを今の中身にする：`cp "$DOC" "$W/doc-reviewed.md"`
+6. 新しい指摘があれば 3〜5 をくり返し、台帳に「## 再レビュー（YYYY-MM-DD）」の節を足す。採用した指摘の「解消／未解消」もそこに書く
+
+別の会話で再レビューを頼まれたとき（`$W` と `TREE` が残っていない）は、1 からやり直して書き出しを作る。
+差分は、台帳に書いたコミットと今の文書で取る（`git -C "$ROOT" diff <台帳の短い SHA> -- "$DOC"`）。`thread_id` は台帳から引く
 
 ## しないこと
 
-- Codex の作業フォルダに、リポジトリそのものを渡すこと（いつも 1 で作った書き出しを渡す）
+- Codex の作業フォルダに、リポジトリそのものを渡すこと（いつも 1 で作った書き出しを渡す）。`--deny-read-list` を外して Codex を呼ぶこと
 - GitHub への投稿（PR へのコメント・Issue・レビュー）
 - 採否が決まる前の文書の修正。Codex に文書を直させること（Codex はいつも読み取り専用）
 - コードの差分のレビュー（GitHub の Codex クラウドレビューの担当。pr-flow 5 節）

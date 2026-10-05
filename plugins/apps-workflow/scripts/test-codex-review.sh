@@ -143,20 +143,22 @@ done < <(grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]+' "$SKILL_DIR/SKILL.
 check "手順書が指すファイルがすべてある${missing:+（無い:$missing）}" test -z "$missing"
 check "手順書は利用者が打ったときだけ動く（disable-model-invocation）" grep -qxF -- "disable-model-invocation: true" "$SKILL_DIR/SKILL.md"
 
-# 手順書で codex-run.sh を呼ぶ行が、すべて作業フォルダに書き出し（$TREE）を渡し、リポジトリそのもの（$ROOT）を渡していないか
-# （リポジトリそのものを渡すと、gitignore の PRIVATE.md なども Codex が読めるため。PR #26 の受け入れレビュー）
-codex_runs_use_tree() {
-  local lines total with_tree
-  lines="$(grep -F 'scripts/codex-run.sh' "$SKILL_DIR/SKILL.md" | grep -F -- ' -C ')"
+# 手順書で codex-run.sh を呼ぶ行（-C の有無を問わず全部）が、すべて作業フォルダに書き出し（$TREE）を渡し、
+# 読ませない場所の一覧を付けているか（リポジトリそのものを渡すと、gitignore の PRIVATE.md なども Codex が読めるため。
+# 一覧を付けないと、作業フォルダの外も読めるため。PR #26 の受け入れレビュー）
+codex_runs_are_guarded() {
+  local lines total with_tree with_deny
+  lines="$(grep -F 'scripts/codex-run.sh' "$SKILL_DIR/SKILL.md")"
   [ -n "$lines" ] || return 1
   total="$(wc -l <<< "$lines")"
-  # 手順書に書かれた「$TREE」「$ROOT」という文字そのものを探すので、わざと単引用符で書く
+  # 手順書に書かれた「$TREE」という文字そのものを探すので、わざと単引用符で書く
   # shellcheck disable=SC2016
   with_tree="$(grep -cF -- '-C "$TREE"' <<< "$lines")"
   # shellcheck disable=SC2016
-  ! grep -qF -- '-C "$ROOT"' <<< "$lines" && [ "$with_tree" -eq "$total" ]
+  with_deny="$(grep -cF -- '--deny-read-list "${CLAUDE_PLUGIN_ROOT}/config/codex-review-deny-read.txt"' <<< "$lines")"
+  [ "$with_tree" -eq "$total" ] && [ "$with_deny" -eq "$total" ]
 }
-check "手順書は Codex の作業フォルダに書き出しを渡し、リポジトリそのものを渡さない" codex_runs_use_tree
+check "手順書は Codex に書き出しだけを渡し、読ませない場所の一覧を必ず付ける" codex_runs_are_guarded
 
 # 引用の場所を特定できないときの扱い（文書全体を範囲にし、location_note を付ける）を、手順書と確かめ役の決まりの両方が書いている
 # （行番号を範囲外にすると、借りてきた検証プロンプトが正しい指摘も当たっていないとするため。PR #26 の Codex のクラウドレビュー）
@@ -262,6 +264,7 @@ printf '# 計画（コミット済み）\n' > "$R3/docs/plan.md"
 printf 'a\n' > "$R3/src/a.txt"
 printf 'KEY=\n' > "$R3/.env.example"
 printf '{}\n' > "$R3/config.local.json.example"
+ln -s src/a.txt "$R3/link.local.md"
 git -C "$R3" add -A
 git -C "$R3" -c user.name=test -c user.email=test@example.com commit -q -m init
 printf '世帯の実データ\n' > "$R3/PRIVATE.md"
@@ -279,6 +282,7 @@ check "gitignore の *.local.md は入らない" test ! -e "$T/exp1/docs/notes.l
 check "管理していないファイルは入らない" test ! -e "$T/exp1/docs/new.md"
 check "管理している .env.example も外す" test ! -e "$T/exp1/.env.example"
 check "管理している *.local.* の見本も外す" test ! -e "$T/exp1/config.local.json.example"
+check "管理している *.local.* の名前のリンクも外す" test ! -L "$T/exp1/link.local.md"
 check "外したファイルを標準エラーに示す" export_err_has ".env.example"
 
 export_tree "$R3/docs/plan.md" "$R3" "$T/exp1"
