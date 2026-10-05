@@ -1,0 +1,41 @@
+{
+  "about": "用途ごとに Codex のモデルと考える深さを決める表。codex-run.sh --use <用途> で引く。モデルは自動では乗り換えない（新しいモデルが良いとは限らず、使用量も変わるため）。変えるときは比べてから、model・effort・status・why と checkedAt を直す",
+  "checkedAt": "2026-10-05",
+  "source": "モデルの名前と一覧は ~/.codex/models_cache.json（codex-cli 0.160.0、2026-10-05 に Codex が取得したもの）。用途ごとの割り当ては比べておらず、2026-10-02 から使ってきた GPT-6 Astra・high をそのまま入れている（比べる判断は Beads ops-h49.6）",
+  "knownModels": [
+    "gpt-6.1-sol",
+    "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5"
+  ],
+  "uses": {
+    "design": {
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "status": "未比較",
+      "why": "仕様・設計の案を出す・壁打ちする（コンペの設計案）。深く考えて穴を見つける力が要る"
+    },
+    "screen": {
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "status": "未比較",
+      "why": "画面の見本（HTML）を作る（コンペの画面案）。コーディング寄りなので、GPT-6.1 Sol と比べる候補"
+    },
+    "review": {
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "status": "未比較",
+      "why": "設計書・計画・差分を読み取り専用でレビューする（codex-review）。見落としを見つける力が要る"
+    },
+    "implement": {
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "status": "未比較",
+      "why": "専用の作業コピーで実装を任せる（委譲）。コーディング寄りなので、GPT-6.1 Sol と比べる候補"
+    }
+  }
+}
