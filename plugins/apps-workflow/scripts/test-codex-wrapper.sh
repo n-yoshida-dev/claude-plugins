@@ -39,7 +39,14 @@ for a in "$@"; do
   if [ "$prev" = "-o" ]; then out="$a"; fi
   prev="$a"
 done
+# JSON でない行が混ざっても、ラッパーが thread_id と使用量を拾えることを確かめるための 1 行
+echo 'JSON でない行'
 echo '{"type":"thread.started","thread_id":"fake-thread-1"}'
+if [ -n "${FAKE_EMPTY:-}" ]; then
+  # 成功したのに返答が空の場合を真似る
+  : > "$out"
+  exit 0
+fi
 if [ "${FAKE_EXIT:-0}" -ne 0 ]; then
   # 失敗しても途中の返答を書く場合を真似る（ラッパーがそれを -o に置かないことを確かめるため）
   printf '途中の返答\n' > "$out"
@@ -84,8 +91,11 @@ run() {
   echo $? > "$T/status"
 }
 
+# 直前の run の終了コードが指定の値か
 status_is() { [ "$(cat "$T/status")" = "$1" ]; }
+# 直前の run の標準出力に、指定の文字列があるか
 stdout_has() { grep -qF -- "$1" "$T/stdout"; }
+# 直前の run の標準出力に、指定の文字列が無いか
 stdout_lacks() { ! grep -qF -- "$1" "$T/stdout"; }
 
 # codex-bin.sh がエラーで終わるか（CODEX_BIN の指定あり／HOME を差し替えて拡張機能を探す、の 2 通り）
@@ -105,6 +115,10 @@ check "CODEX_BIN を優先する" \
 # CODEX_BIN が実行できないなら、ほかを探さずにエラー
 touch "$T/not-exec"
 check "実行できない CODEX_BIN はエラー" bin_fails_with "$T/not-exec"
+
+# 相対パスの CODEX_BIN は、呼んだ場所を基準に絶対パスで返す
+check "相対パスの CODEX_BIN を絶対パスにして返す" \
+  test "$(cd "$T" && CODEX_BIN=fake/codex bash "$BIN_SH")" = "$T/fake/codex"
 
 # 拡張機能の版が複数あれば、版の順で最新を選ぶ（文字の順では 26.930.9 が最後になるので、版の順と区別できる）
 EXT="$T/home/.vscode-server/extensions"
@@ -151,6 +165,10 @@ check "一時フォルダを残さない" test -z "$(ls -A "$T/tmp")"
 check "相対パスの依頼書と結果を、呼んだ場所から解決する" test "$(cat "$T/out-rel.md")" = "偽の返答"
 check "workspace-write を渡せる" has_seq -s workspace-write
 
+# 相対パスの CODEX_BIN でも、-C で別のフォルダに移ってから codex を動かせる
+(cd "$T" && CODEX_BIN=fake/codex TMPDIR="$T/tmp" bash "$RUN_SH" -s read-only -f prompt.md -o out-relbin.md -C work > /dev/null 2>&1)
+check "相対パスの CODEX_BIN で -C の先でも動く" test "$(cat "$T/out-relbin.md")" = "偽の返答"
+
 run -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" -e medium -m other-model --schema "$T/schema.json" --keep-session --skip-git-repo-check --events "$T/events.jsonl"
 check "-e で考える深さを変えられる" has_seq -c 'model_reasoning_effort="medium"'
 check "-m でモデルを変えられる" has_seq -m other-model
@@ -183,6 +201,11 @@ check "失敗したら -o のファイルを書き換えない" test "$(cat "$T/
 check "失敗の理由を標準エラーに出す" grep -qF '偽の失敗' "$T/stderr"
 check "失敗しても一時フォルダを残さない" test -z "$(ls -A "$T/tmp")"
 
+FAKE_EMPTY=1 run -s read-only -f "$T/prompt.md" -o "$T/keep.md" -C "$T/work"
+check "返答が空なら終了コード 1" status_is 1
+check "返答が空なら -o のファイルを書き換えない" test "$(cat "$T/keep.md")" = "前の結果"
+check "返答が空だったことを標準エラーに出す" grep -qF '返答が空' "$T/stderr"
+
 echo "--- codex-run.sh：指定の誤り（codex を呼ばない） ---"
 
 run -f "$T/prompt.md" -o "$T/out.md"
@@ -205,6 +228,13 @@ check "-o が無ければ終了コード 2" status_is 2
 
 run -s read-only -f "$T/prompt.md" -o "$T/no-dir/out.md"
 check "-o のフォルダが無ければ終了コード 2" status_is 2
+
+run -s read-only -f "$T/prompt.md" -o "$T/work"
+check "-o にフォルダを指定したら終了コード 2" status_is 2
+check "-o がフォルダなら codex を呼ばない" not_called
+
+run -s read-only -f "$T/prompt.md" -o "$T/out.md" --events "$T/work"
+check "--events にフォルダを指定したら終了コード 2" status_is 2
 
 run -s read-only -f "$T/prompt.md" -o "$T/out.md" -e 'high" sandbox_mode="danger-full-access'
 check "-e に引用符を混ぜられない" status_is 2

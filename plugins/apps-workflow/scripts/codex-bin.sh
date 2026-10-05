@@ -18,10 +18,15 @@ set -uo pipefail
 EXT_DIR="$HOME/.vscode-server/extensions"
 BIN_IN_EXT="bin/linux-x86_64/codex"
 
-# 環境変数で指定されていれば、それだけを確かめて返す
+# 環境変数で指定されていれば、それだけを確かめて返す。
+# 相対パスは呼ばれた時点のフォルダを基準に絶対パスへ直す（codex-run.sh は作業フォルダへ移ってから実行するため）
 if [ -n "${CODEX_BIN:-}" ]; then
-  if [ -x "$CODEX_BIN" ] && [ ! -d "$CODEX_BIN" ]; then
-    printf '%s\n' "$CODEX_BIN"
+  case "$CODEX_BIN" in
+    /*) given="$CODEX_BIN" ;;
+    *) given="$PWD/$CODEX_BIN" ;;
+  esac
+  if [ -x "$given" ] && [ ! -d "$given" ]; then
+    printf '%s\n' "$given"
     exit 0
   fi
   echo "codex-bin.sh: CODEX_BIN（$CODEX_BIN）が実行できるファイルではありません" >&2

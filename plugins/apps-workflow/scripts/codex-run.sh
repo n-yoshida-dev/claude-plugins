@@ -109,6 +109,7 @@ fi
 prompt_file="$(to_abs "$prompt_file")"
 out_file="$(to_abs "$out_file")"
 [ -d "$(dirname "$out_file")" ] || usage_error "-o の置き場所のフォルダがありません: $(dirname "$out_file")"
+[ ! -d "$out_file" ] || usage_error "-o にフォルダが指定されています。ファイルのパスを指定してください: $out_file"
 if [ -n "$schema_file" ]; then
   schema_file="$(to_abs "$schema_file")"
   [ -f "$schema_file" ] || usage_error "--schema のファイルがありません: $schema_file"
@@ -116,6 +117,7 @@ fi
 if [ -n "$events_file" ]; then
   events_file="$(to_abs "$events_file")"
   [ -d "$(dirname "$events_file")" ] || usage_error "--events の置き場所のフォルダがありません: $(dirname "$events_file")"
+  [ ! -d "$events_file" ] || usage_error "--events にフォルダが指定されています。ファイルのパスを指定してください: $events_file"
 fi
 workdir="$(to_abs "${workdir:-$PWD}")"
 [ -d "$workdir" ] || usage_error "-C のフォルダがありません: $workdir"
@@ -153,9 +155,14 @@ cd "$workdir" || { echo "codex-run.sh: 作業フォルダに移れません: $wo
 status=$?
 
 # 失敗したときは、出来事の記録からエラーの行を拾って理由を見せる（--json では理由が標準出力側に出るため）
-if [ "$status" -ne 0 ] || [ ! -f "$tmp_out" ]; then
-  echo "codex-run.sh: codex が失敗しました（終了コード $status）。-o のファイルは書き換えていません" >&2
-  jq -rc 'select(.type == "error" or .type == "turn.failed")' "$events_file" 2>/dev/null | tail -n 5 >&2
+# 出来事の記録は 1 行 1 つの JSON。JSON として読めない行が混ざっても止まらないよう、読めない行は飛ばす
+if [ "$status" -ne 0 ] || [ ! -s "$tmp_out" ]; then
+  if [ "$status" -eq 0 ]; then
+    echo "codex-run.sh: codex の返答が空でした。-o のファイルは書き換えていません" >&2
+  else
+    echo "codex-run.sh: codex が失敗しました（終了コード $status）。-o のファイルは書き換えていません" >&2
+  fi
+  jq -rcR 'fromjson? | select(.type == "error" or .type == "turn.failed")' "$events_file" | tail -n 5 >&2
   [ "$status" -ne 0 ] || status=1
   exit "$status"
 fi
@@ -163,8 +170,8 @@ fi
 mv "$tmp_out" "$out_file" || { echo "codex-run.sh: 結果を $out_file に置けません" >&2; exit 1; }
 
 # 要約。thread_id は --resume に、使用量は記録に使う
-thread_id="$(jq -r 'select(.type == "thread.started") | .thread_id' "$events_file" 2>/dev/null | tail -n 1)"
-usage="$(jq -c 'select(.type == "turn.completed") | .usage' "$events_file" 2>/dev/null | tail -n 1)"
+thread_id="$(jq -rR 'fromjson? | select(.type == "thread.started") | .thread_id' "$events_file" | tail -n 1)"
+usage="$(jq -cR 'fromjson? | select(.type == "turn.completed") | .usage' "$events_file" | tail -n 1)"
 echo "結果: $out_file"
 # resume した回は --ephemeral でも元の記録に追記されるので、「残していない」とは書かない
 if [ "$keep_session" -eq 1 ] || [ -n "$resume_id" ]; then
