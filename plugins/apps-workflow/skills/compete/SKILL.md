@@ -1,6 +1,6 @@
 ---
 name: compete
-description: 設計案・画面案のコンペを回す。同じブリーフから Opus・Fable（Agent ツール）と Codex（用途 design / screen の表のモデル。2026-10 時点は GPT-6 Astra）が独立に 1 案ずつ作り、作り手を伏せて A・B・C… にし、作り手を知らない AI のレビュー役と審査役がおすすめを出し、利用者が節ごとに選ぶ。比較ページは非公開の Artifact。利用者が /apps-workflow:compete <お題> と打ったときだけ動く。コード実装のコンペは今はしない（判断文書「決定」節の問い 6）。
+description: 設計案・画面案のコンペを回す。同じブリーフから Opus・Fable（Agent ツール）と Codex（用途 design / screen の表のモデル。2026-10-06 から GPT-6.1 Sol）が独立に 1 案ずつ作り、作り手を伏せて A・B・C… にし、作り手を知らない AI のレビュー役と審査役がおすすめを出し、利用者が節ごとに選ぶ。比較ページは非公開の Artifact。利用者が /apps-workflow:compete <お題> と打ったときだけ動く。コード実装のコンペは今はしない（判断文書「決定」節の問い 6）。
 disable-model-invocation: true
 argument-hint: <お題（何を決めたいか）>
 ---

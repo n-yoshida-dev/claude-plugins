@@ -68,7 +68,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f �
   2026-10-02 に Codex の既定が Astra・最大の深さに変わり、1 回の依頼で利用上限に当たった例がある）。
   知らせを見た Claude は Beads に付箋を作り、用途ごとに比べてから表の model・effort・status・why と checkedAt を直す。
   比べ終えたモデルは、採らなかった場合も `knownModels` に足す（足さないと同じ知らせが出続ける）
-- 2026-10-05 時点の表は 4 用途とも `gpt-6-astra`・`high`・「未比較」。2026-10-02 から使ってきた値をそのまま入れたもので、比べて選んだものではない（比べる判断は Beads ops-h49.6）
+- 2026-10-06 から、表は 4 用途とも `gpt-6.1-sol`・`medium`（v1.10.2）。それまでは 4 用途とも `gpt-6-astra`・`high` だった。
+  本人の「Astraはやはりトークン使用量がとんでもないから、別のモデルを使う方針にしよう」と、Claude の提案への「OK」で変えた。
+  根拠は Web の調べ（OpenAI のモデルの解説が Codex に `gpt-6.1-sol` を勧める・Astra とほぼ同じ賢さで単価は 1/5・Plus の 5 時間の目安は約 3 倍。Beads ops-h49.6）で、
+  用途ごとに実物で比べてはいない。設計やレビューで見落としが目立ったら、その用途だけ考える深さを上げるか Astra に戻す
 
 - スキルの本文からは上のように `${CLAUDE_PLUGIN_ROOT}` で指す。手で呼ぶときは、このリポジトリの写し
   `~/workspace/apps/claude-plugins/plugins/apps-workflow/scripts/codex-run.sh` を絶対パスで指す（導入先は版ごとにフォルダが変わるため）
