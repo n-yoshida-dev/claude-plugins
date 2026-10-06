@@ -8,6 +8,7 @@
 #   1. モデル・会社の名前（Opus・Fable・Astra・Sonnet・Haiku・Claude・Anthropic・OpenAI・GPT・ChatGPT・Codex・Gemini）。大文字小文字は区別しない
 #      お題によっては中身として正しく出てくる（例：Claude Code を使った作品の紹介）ので、見つけても自動では消さない。
 #      調整役が行を読み、作り手の名乗りなら伏せ字にする
+#   1b. 作り手の札（w- と 16 進 6 桁）と、作り手のフォルダのパス（/makers/）。作り手が材料のパスを案に引くと入る。見つけたら必ず伏せ字にする
 #   2. 禁止語の一覧（任意。1 行 1 語、# から後ろと空行は読まない）。Private リポジトリの原文の言い回しや、本人の非公開の事実の語を入れる
 #      （試行 2 で作り手が Private の学習ログの 1 行を案に引いたため）。一覧はリポジトリにも RUN にも置かない（調整役のフォルダに置く）
 #   3. design のとき：RUN/input/parts.txt の節が、design.md に「## 節の名前」の行としてちょうど 1 回ずつあるか
@@ -56,6 +57,10 @@ while IFS= read -r label; do
     while IFS= read -r hit; do
       [ -n "$hit" ] && report "$label/$name:${hit%%:*}: 作り手・会社の名前: ${hit#*:}"
     done < <(grep -n -i -E -- "$NAMES" "$f" | cut -c1-200)
+    # 作り手の札（w- と 16 進 6 桁）と作り手のフォルダのパス。作り手が材料のパスを案に引くと入り、調整役の workers.tsv と結び付いて作り手が分かるため
+    while IFS= read -r hit; do
+      [ -n "$hit" ] && report "$label/$name:${hit%%:*}: 作り手の札・フォルダ: ${hit#*:}"
+    done < <(grep -n -E -- 'w-[0-9a-f]{6}|/makers/' "$f" | cut -c1-200)
     for w in "${words[@]}"; do
       while IFS= read -r hit; do
         [ -n "$hit" ] && report "$label/$name:${hit%%:*}: 禁止語「$w」: ${hit#*:}"

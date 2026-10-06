@@ -30,7 +30,7 @@ HANDOFF / PLAN / SPEC / TODO / KNOWLEDGE / `logs/decisions.md` のドキュメ�
 | スクリプト | `scripts/codex-review-target.sh` | codex-review に渡された文書が Codex に送ってよいものかを確かめ、文書とリポジトリのルートの絶対パスを返す。送らない場所は `~/workspace/ops` と `~/workspace/personal` がいつも入り、環境変数 `CODEX_DENY_ROOTS`（: 区切り）で足せる。シンボリックリンクは行き先で判定する（v1.9.0） |
 | スクリプト | `scripts/codex-review-export.sh` | Codex に読ませる作業フォルダを、リポジトリの HEAD（`git archive`。gitignore の対象やコミットしていないファイルは入らない）に、レビューする文書の今の中身を重ねて作る。PRIVATE.md・`*.local.*`・`.env*` の名前のファイルとリンクは、管理している見本も外す（v1.9.0） |
 | テスト | `scripts/test-codex-review.sh` | 上の 3 本と、codex-review の手順書の回帰テスト（手順書が指すファイルがある・Codex にリポジトリそのものを渡していない・引用の場所の扱いがそろっている）。CI でも回す（v1.9.0） |
-| スキル | `/apps-workflow:compete <お題>` | 設計案（`design`）・画面案（`screen`）のコンペ。ブリーフを書いて Fable が点検 → Opus・Fable（Agent ツール）と Codex（用途 `design` / `screen`。読み取り専用で、ほかの作り手のフォルダは読ませない）が独立に 1 案ずつ → 作り手を伏せて A・B・C… → （設計案なら）割れた点だけ全員に同じ質問で反論 1 回 → 案ごとに Fable のレビュー役（借りてきた `writing-2-reviewer.md`）→ 系統の違う審査役 2 つ（Fable と Codex。借りてきた `writing-3-judge.md`。審査役ごとにレビューの並び順を乱数で変える）→ 節ごとに選べる比較ページ（非公開の Artifact）→ 利用者が選んだら作り手を明かして `docs/design-candidates/` と `logs/decisions.md` に残す。**利用者が打ったときだけ動く**。作り手は Workflow ツールでなく Agent ツールで起動する（Workflow は利用者の発言を全員に中継し、試行 3 で作り手が読んではいけない資料を読んだため）。コード実装のコンペはしない（v1.10.0） |
+| スキル | `/apps-workflow:compete <お題>` | 設計案（`design`）・画面案（`screen`）のコンペ。ブリーフを書いて Fable が点検 → Opus・Fable（Agent ツール）と Codex（用途 `design` / `screen`。読み取り専用で、ほかの作り手のフォルダは読ませない）が独立に 1 案ずつ → 作り手を伏せて A・B・C… → （設計案なら）割れた点だけ全員に同じ質問で反論 1 回 → 案ごとに Fable のレビュー役（借りてきた `writing-2-reviewer.md`）→ 系統の違う審査役 2 つ（Fable と Codex。借りてきた `writing-3-judge.md`。審査役ごとにレビューの並び順を乱数で変える）→ 節ごとに選べる比較ページ（非公開の Artifact）→ 利用者が選んだら作り手を明かして `docs/design-candidates/` と `logs/decisions.md` に残す。**利用者が打ったときだけ動く**。作り手は Workflow ツールでなく Agent ツールで起動する（Workflow は利用者の発言を全員に中継し、試行 3 で作り手が読んではいけない資料を読んだため）。Codex は OS の権限で読む場所を止めるが、Claude 側の作り手・レビュー役・審査役は指示だけで縛っている。コード実装のコンペは今はしない（判断文書の問い 6）（v1.10.0） |
 | スクリプト | `scripts/compete-setup.sh` | コンペの作業場所（/tmp/compete.…）を作り、作り手ごとのフォルダ（名前は乱数の札。作り手の名前を出さない）にブリーフと材料を複製する。材料は Git で管理しているファイルと、調整役が撮った画像だけ。Codex の作り手と審査役に渡す「読ませない場所」の一覧（共通の一覧＋ほかの作り手のフォルダなど）も作る（v1.10.0） |
 | スクリプト | `scripts/compete-blind.sh` | 作り手の成果物を乱数で A・B・C… に写し、元と写しの sha256 を比べる。伏せ字の対応は調整役のフォルダにだけ書く。成果物がそろわない案は外す。伏せ字どうしで中身が同じなら止める（試行 1 で 3 枠とも同じ案になったため）（v1.10.0） |
 | スクリプト | `scripts/compete-check.sh` | 伏せた案に、モデル・会社の名前、禁止語（Private の原文の言い回しなど）、設計案の見出しの崩れが無いかを調べる。見つけても自動では消さない（v1.10.0） |
@@ -38,7 +38,7 @@ HANDOFF / PLAN / SPEC / TODO / KNOWLEDGE / `logs/decisions.md` のドキュメ�
 | スクリプト | `scripts/compete-rebuttal.sh` | 反論 1 回の依頼書を作り（作り手には自分の伏せ字だけを知らせる）、答えを伏せた案の横に集める。調整役は伏せ字の対応を見ずに回せる（v1.10.0） |
 | スクリプト | `scripts/compete-unpack.sh` | Codex の画面案の返事（JSON）を `index.html` と `aim.md` に書く（v1.10.0） |
 | スクリプト | `scripts/compete-page.mjs` | 節ごとに選べる比較ページを作る。設計案は見出しで節に切って横に並べ、画面案は枠の中で 1280px と 375px を切り替える。選ぶと「返す言葉」ができ、コピーできる。どの案も同じ色・同じ形（v1.10.0） |
-| テスト | `scripts/test-compete.sh` | 上の 7 本と、compete の手順書の回帰テスト（87 件。Codex もモデルも呼ばない）。CI でも回す（v1.10.0） |
+| テスト | `scripts/test-compete.sh` | 上の 7 本と、compete の手順書の回帰テスト（93 件。Codex もモデルも呼ばない）。CI でも回す（v1.10.0） |
 | エージェント | `apps-workflow:acceptance-reviewer` | マージ前に差分を TODO.md の「完了条件：」・SPEC.md・CLAUDE.md「守ること」に照らして検品する読み取り専用の評価役。判定（マージ可／直してから／ユーザー判断が要る）を返すだけで、直すのは呼び出し側 |
 
 ## 受け入れレビューの呼び方（マージ前）

@@ -13,8 +13,9 @@
 #   RUN/makers/<札>/out/   作り手が成果物を置く空のフォルダ
 # 調整役のフォルダ COORD（Claude の作業用フォルダの中。Codex には読ませない）：
 #   COORD/workers.tsv           札<TAB>作り手（調整役が作り手を起動するときに読む）
-#   COORD/deny-read-<作り手>.txt  Codex の作り手に渡す「読ませない場所」の一覧。共通の一覧に、ほかの作り手のフォルダを足したもの
-#   COORD/deny-read-judge.txt   Codex の審査役に渡す一覧。共通の一覧に、RUN/makers と RUN/rebuttal を足したもの
+#   COORD/deny-read-<作り手>.txt  Codex の作り手に渡す「読ませない場所」の一覧。共通の一覧に、ほかの作り手のフォルダ・RUN/rebuttal・COORD を足したもの
+#   COORD/deny-read-judge.txt   Codex の審査役に渡す一覧。共通の一覧に、RUN/makers・RUN/rebuttal・RUN/judges・COORD を足したもの
+#   COORD を足すのは、scratchpad が無く mktemp -d（/tmp/tmp.…）に作ったときも、対応表を Codex に読ませないため
 #
 # 材料の決まり：
 #   - リポジトリの中のファイルは、Git で管理していて gitignore の対象でないものだけ（コミットしない＝外に出さない前提のため）
@@ -154,15 +155,20 @@ for m in "${maker_list[@]}"; do
       [ "$o" = "$m" ] || echo "$run/makers/${tag_of[$o]}"
     done
     echo "$run/rebuttal"
+    echo "# 調整役のフォルダ（作り手と札・伏せ字の対応がある。scratchpad の外に作った場合も読ませないため）"
+    echo "$coord"
   } > "$out" || write_error "書けません: $out"
 done
 {
   cat -- "$BASE_DENY"
   echo ""
-  echo "# compete-setup.sh が足した：作り手のフォルダと反論の置き場（審査役が作り手を知らないため）"
+  echo "# compete-setup.sh が足した：作り手のフォルダと反論の置き場と調整役のフォルダ（審査役が作り手を知らないため）、"
+  echo "# ほかの審査役の判定の置き場（審査役どうしが独立に判定するため）"
   echo "$run/makers"
   echo "$run/rebuttal"
+  echo "$run/judges"
+  echo "$coord"
 } > "$coord/deny-read-judge.txt" || write_error "書けません: $coord/deny-read-judge.txt"
-mkdir -p -- "$run/rebuttal" || write_error "フォルダを作れません: $run/rebuttal"
+mkdir -p -- "$run/rebuttal" "$run/judges" || write_error "フォルダを作れません: $run/rebuttal / $run/judges"
 
 cat -- "$coord/workers.tsv"

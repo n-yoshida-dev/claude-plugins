@@ -1,6 +1,6 @@
 ---
 name: compete
-description: 設計案・画面案のコンペを回す。同じブリーフから Opus・Fable（Agent ツール）と Codex（用途 design / screen の表のモデル。2026-10 時点は GPT-6 Astra）が独立に 1 案ずつ作り、作り手を伏せて A・B・C… にし、作り手を知らない AI のレビュー役と審査役がおすすめを出し、利用者が節ごとに選ぶ。比較ページは非公開の Artifact。利用者が /apps-workflow:compete <お題> と打ったときだけ動く。コード実装のコンペはしない（判断文書「決定」節の問い 6）。
+description: 設計案・画面案のコンペを回す。同じブリーフから Opus・Fable（Agent ツール）と Codex（用途 design / screen の表のモデル。2026-10 時点は GPT-6 Astra）が独立に 1 案ずつ作り、作り手を伏せて A・B・C… にし、作り手を知らない AI のレビュー役と審査役がおすすめを出し、利用者が節ごとに選ぶ。比較ページは非公開の Artifact。利用者が /apps-workflow:compete <お題> と打ったときだけ動く。コード実装のコンペは今はしない（判断文書「決定」節の問い 6）。
 disable-model-invocation: true
 argument-hint: <お題（何を決めたいか）>
 ---
@@ -23,10 +23,14 @@ argument-hint: <お題（何を決めたいか）>
   試行 3 で作り手が読んではいけない資料を読んだため（ops-h49 の 2026-10-04 のコメント。判断文書 §7 は Workflow と書いていたが、これで変えた。Claude の判断）
 - 2 つのフォルダを使う。どちらもリポジトリの外
   - **調整役のフォルダ `COORD`**：Claude の scratchpad（無ければ `mktemp -d`）の中に `compete-<YYYYMMDD>-<短い英字の題>/` を作る。ブリーフの下書き・作り手と札の対応・伏せ字の対応・使用量。
-    Codex には読ませない（scratchpad は「読ませない場所」の一覧に入っている）
+    Codex には読ませない（scratchpad は共通の「読ませない場所」の一覧に入っている。`mktemp -d` に作った場合も、`compete-setup.sh` が Codex に渡す一覧に足す）
   - **作業場所 `RUN`**：`RUN="$(mktemp -d /tmp/compete.XXXXXX)"`。ブリーフの写し・材料・作り手のフォルダ・伏せた案・レビュー・判定。
     Codex にも読ませるので scratchpad の外に置く。中身は Git で管理しているファイルと、調整役が撮った画像だけ
 - 伏せ字の対応（`COORD/labels.local.tsv`）と、`RUN/rebuttal/` の中は、**利用者が選び終えるまで調整役は開かない**
+- **伏せる・互いに見せないの強さは、Codex と Claude 側で違う。** Codex は読ませない場所の一覧（OS の権限）で止まる。
+  Claude 側の作り手・レビュー役・審査役（Agent ツール）にはサンドボックスが無く、隣の作り手のフォルダも `COORD` の対応表も読めて、**指示だけで縛っている**
+  （試行 3 で Opus の作り手が作業フォルダの外の対応表を開いた。ops-h49 の 2026-10-04・2026-10-05 のコメント）。
+  そのため対応表は作り手が終わってから作り（`compete-blind.sh`）、依頼書には `COORD` のパスを書かない。作り手が報告で対応表や隣のフォルダを開いたと書いていたら、比較ページと記録に書く
 
 ## 1. お題・形・節を決める
 
@@ -87,13 +91,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-brief.sh" maker "$RUN" <札> <claude
 - **Codex**：Bash のバックグラウンド実行。読み取り専用で、ほかの作り手のフォルダを読ませない一覧を渡す
   - design：
     ```bash
-    bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use design -s read-only -f "$RUN/makers/<札>/task.md" -o "$RUN/makers/<札>/out/design.md" -C "$RUN/makers/<札>" --skip-git-repo-check --events "$COORD/events-maker-astra.jsonl" --deny-read-list "$COORD/deny-read-astra.txt"
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use design -s read-only -f "$RUN/makers/<札>/task.md" -o "$RUN/makers/<札>/out/design.md" -C "$RUN/makers/<札>" --skip-git-repo-check --events "$COORD/events-maker-<作り手>.jsonl" --deny-read-list "$COORD/deny-read-<作り手>.txt"
     ```
   - screen（返事の形を JSON に縛り、あとでファイルにする。画像の材料は `-i` で添える）：
     ```bash
-    bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use screen -s read-only --schema "${CLAUDE_PLUGIN_ROOT}/skills/compete/screen-output.schema.json" -f "$RUN/makers/<札>/task.md" -o "$COORD/astra-screen.json" -C "$RUN/makers/<札>" --skip-git-repo-check --events "$COORD/events-maker-astra.jsonl" --deny-read-list "$COORD/deny-read-astra.txt" -i "$RUN/makers/<札>/input/<画像>"
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use screen -s read-only --schema "${CLAUDE_PLUGIN_ROOT}/skills/compete/screen-output.schema.json" -f "$RUN/makers/<札>/task.md" -o "$COORD/screen-<作り手>.json" -C "$RUN/makers/<札>" --skip-git-repo-check --events "$COORD/events-maker-<作り手>.jsonl" --deny-read-list "$COORD/deny-read-<作り手>.txt" -i "$RUN/makers/<札>/input/<画像>"
     ```
-    終わったら `bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-unpack.sh" "$COORD/astra-screen.json" "$RUN/makers/<札>/out"`
+    終わったら `bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-unpack.sh" "$COORD/screen-<作り手>.json" "$RUN/makers/<札>/out"`
+  - `<作り手>` は `workers.tsv` の作り手の名前（既定は `astra`。`--makers` で版を足したら `astra-ctx` など）
 
 待ち方と決まり：
 
@@ -112,7 +117,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-check.sh" "$RUN" "$COORD/forbidden.t
 
 - `compete-blind.sh` が乱数で A・B・C… を割り当て、写しを sha256 で確かめる。成果物がそろわない作り手は外れる（欠けた数は標準出力）
 - `forbidden.txt` は任意。Private のリポジトリの原文の言い回しや、生活の事実の語を 1 行 1 つで `COORD/` に書く（リポジトリにも RUN にも置かない）。無ければ引数を省く
-- `compete-check.sh` が何か見つけたら（終了コード 1）、`RUN/blind/` の該当の行を読む。作り手の名乗り・非公開の語なら、伏せた写しのその語を「（伏せ字）」に直し、直したことを `COORD/redactions.md` に書く。
+- `compete-check.sh` が何か見つけたら（終了コード 1）、`RUN/blind/` の該当の行を読む。**作り手の札・フォルダのパスは必ず伏せ字にする**（`workers.tsv` と結び付いて作り手が分かるため）。作り手の名乗り・非公開の語なら、伏せた写しのその語を「（伏せ字）」に直し、直したことを `COORD/redactions.md` に書く。
   お題の中身として正しく出てくる名前（例：Claude Code を使った作品の紹介）は直さない
 - screen のとき、アプリに Playwright があれば、各見本を 1280px と 375px で開いて横のはみ出し（`document.documentElement.scrollWidth - innerWidth`）を測り、`COORD/checks.md` に書く。
   無ければ「表示は確かめていない」と書く
@@ -128,12 +133,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-check.sh" "$RUN" "$COORD/forbidden.t
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-rebuttal.sh" prepare "$RUN" "$COORD" "$COORD/questions.md"
 ```
 
-標準出力の「作り手<TAB>依頼書<TAB>答えの置き場」ごとに、**3 者とも新しい文脈で**同時に起動する（判断文書 §10「反論は全員新しい文脈＋同じ質問文」）。依頼書の中身は調整役が読まない（作り手の伏せ字が書いてある）。
+標準出力の「作り手<TAB>依頼書<TAB>答えの置き場」ごとに、**3 者とも新しい文脈で**同時に起動する（ops-h49 の 2026-10-04 のコメント「反論は全員新しい文脈＋同じ質問文、を標準にする」）。依頼書の中身は調整役が読まない（作り手の伏せ字が書いてある）。
 
 - Opus・Fable：Agent ツール（4 節と同じ `model`）、プロンプトは「`<依頼書>` を読み、その指示どおりに答える。」の 1 行だけ
-- Codex：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use design -s read-only -f "<依頼書>" -o "<答えの置き場>" -C "$RUN" --skip-git-repo-check --deny-read-list "$COORD/deny-read-astra.txt"`
+- Codex：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use design -s read-only -f "<依頼書>" -o "<答えの置き場>" -C "$RUN" --skip-git-repo-check --events "$COORD/events-rebuttal-<作り手>.jsonl" --deny-read-list "$COORD/deny-read-<作り手>.txt"`
+- 始めと終わりの時刻・使用量を `usage.tsv` に書く（役は「反論」）
 
-全員の通知がそろったら集め、もう一度検査する（答えの中の名乗りを見つけるため）：
+全員の通知がそろったら集め、もう一度検査する（答えの中の名乗りを見つけるため）。
+答えが欠けた作り手があっても、**利用者が選ぶ前に、どの作り手の反論が欠けたかを言わない**（比較ページで反論の無い伏せ字と結び付くため。「反論が 1 件欠けた」とだけ言う）：
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-rebuttal.sh" collect "$RUN" "$COORD"
@@ -149,6 +156,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-check.sh" "$RUN" "$COORD/forbidden.t
 
 - 全部の案を同じ系統の同じ条件でレビューする（比べる条件をそろえるため）。Fable も作り手の 1 つだが、伏せてあるので自分の案かは分からない
 - レビューが欠けたら、その伏せ字だけ 1 回呼び直す
+- 始めと終わりの時刻・使用量を `usage.tsv` に書く（役は「レビュー」、作り手の欄は伏せ字）
 
 ## 8. 審査役（系統の違う 2 つ）
 
@@ -169,6 +177,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-brief.sh" judge "$RUN" astra codex
 
 審査役を 2 つにするのは、Fable の審査役が Fable の作った案を（伏せてあっても）好む偏りを、系統の違う審査役と比べて見えるようにするため（Claude の判断）。
 2 つの判定が割れたら、割れたまま比較ページに出す。調整役がどちらかに寄せない。
+Codex の審査役には `RUN/judges/` も読ませない（Fable の判定を先に見ないため）。Fable の審査役は指示だけで縛っている（0 節）。
+始めと終わりの時刻・使用量を `usage.tsv` に書く（役は「審査」）。
 
 ## 9. 比較ページを見せて、利用者に選んでもらう
 
@@ -217,5 +227,5 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/compete-page.mjs" --run "$RUN" --out "$COORD
 - Workflow ツールで作り手を起動すること（0 節）。Codex の作り手・審査役を `--deny-read-list` なしで、または書き込みありで動かすこと
 - 作り手に、ほかの作り手の案を反論の前に見せること。反論を 2 回以上回すこと
 - 審査役のおすすめで、利用者の選択を埋めること。選ばれた案の合成・実装を、利用者の返事の前に始めること
-- コード実装のコンペ（問い 6。やるなら作り手ごとの worktree が要り、このスキルの外）
+- コード実装のコンペ（問い 6「今はしない」。やるなら作り手ごとの worktree が要り、このスキルの外）
 - 利用者の頼みなしのやり直し、モデルや考える深さを変えたやり直し（どちらも利用枠を使うため）
