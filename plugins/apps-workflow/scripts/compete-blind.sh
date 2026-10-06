@@ -53,7 +53,8 @@ while IFS=$'\t' read -r tag _maker; do
   [ -n "$tag" ] || continue
   ok=1
   for f in "${files[@]}"; do
-    [ -f "$run/makers/$tag/out/$f" ] && [ -s "$run/makers/$tag/out/$f" ] || ok=0
+    # -s は「あって空でない」。フォルダは -f で外す
+    if [ ! -f "$run/makers/$tag/out/$f" ] || [ ! -s "$run/makers/$tag/out/$f" ]; then ok=0; fi
   done
   if [ "$ok" -eq 1 ]; then complete+=("$tag"); else missing+=("$tag"); fi
 done < "$coord/workers.tsv"

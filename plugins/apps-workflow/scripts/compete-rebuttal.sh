@@ -49,7 +49,7 @@ case "$mode" in
   prepare)
     [ $# -eq 4 ] || usage_error "使い方: bash compete-rebuttal.sh prepare <作業場所 RUN> <調整役のフォルダ COORD> <割れた点.md>"
     questions="$4"
-    [ -f "$questions" ] && [ -s "$questions" ] || usage_error "割れた点のファイルが無いか空です: $questions"
+    if [ ! -f "$questions" ] || [ ! -s "$questions" ]; then usage_error "割れた点のファイルが無いか空です: $questions"; fi
     if [ -n "$(ls -A -- "$run/rebuttal" 2>/dev/null)" ]; then usage_error "前の回の反論が残っています: $run/rebuttal"; fi
     while IFS=$'\t' read -r tag maker; do
       [ -n "$tag" ] || continue

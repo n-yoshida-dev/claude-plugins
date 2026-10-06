@@ -54,7 +54,7 @@ case "$mode" in
   maker)
     [ $# -eq 4 ] || usage_error "使い方: bash compete-brief.sh maker <作業場所 RUN> <札> <claude|codex>"
     tag="$3"; side="$4"; check_side "$side"
-    [[ "$tag" =~ ^w-[0-9a-f]+$ ]] && [ -d "$run/makers/$tag" ] || usage_error "作り手の札がありません: $tag"
+    if [[ ! "$tag" =~ ^w-[0-9a-f]+$ ]] || [ ! -d "$run/makers/$tag" ]; then usage_error "作り手の札がありません: $tag"; fi
     dir="$run/makers/$tag"
     if [ "$side" = "claude" ]; then
       if [ "$kind" = "design" ]; then files="design.md"; else files="index.html と aim.md"; fi
@@ -72,7 +72,7 @@ case "$mode" in
   review)
     [ $# -eq 3 ] || usage_error "使い方: bash compete-brief.sh review <作業場所 RUN> <伏せ字>"
     label="$3"
-    [[ "$label" =~ ^[A-Z]$ ]] && [ -d "$run/blind/$label" ] || usage_error "伏せた案がありません: $label"
+    if [[ ! "$label" =~ ^[A-Z]$ ]] || [ ! -d "$run/blind/$label" ]; then usage_error "伏せた案がありません: $label"; fi
     draft_dir="$run/blind/$label"
     if [ "$kind" = "design" ]; then
       draft="$draft_dir/design.md"

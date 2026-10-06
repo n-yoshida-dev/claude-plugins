@@ -22,7 +22,7 @@ usage_error() {
   exit 2
 }
 
-[ $# -ge 1 ] && [ $# -le 2 ] || usage_error "使い方: bash compete-check.sh <作業場所 RUN> [禁止語の一覧.txt]"
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then usage_error "使い方: bash compete-check.sh <作業場所 RUN> [禁止語の一覧.txt]"; fi
 run="$(realpath -e -- "$1")" || usage_error "作業場所がありません: $1"
 words_file="${2:-}"
 [ -f "$run/blind/labels.txt" ] || usage_error "伏せた案がありません（compete-blind.sh のあとに使います）: $run/blind"

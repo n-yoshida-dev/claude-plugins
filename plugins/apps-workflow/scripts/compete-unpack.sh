@@ -17,12 +17,12 @@ usage_error() {
 
 [ $# -eq 2 ] || usage_error "使い方: bash compete-unpack.sh <返事の JSON> <作り手の out フォルダ>"
 json="$1"; out="$2"
-[ -f "$json" ] && [ -s "$json" ] || usage_error "返事の JSON が無いか空です: $json"
+if [ ! -f "$json" ] || [ ! -s "$json" ]; then usage_error "返事の JSON が無いか空です: $json"; fi
 [ -d "$out" ] || usage_error "out フォルダがありません: $out"
 command -v jq > /dev/null || usage_error "jq がありません"
 jq -e 'type == "object" and (.html | type == "string" and length > 0) and (.aim | type == "string" and length > 0)' "$json" > /dev/null 2>&1 \
   || usage_error "返事の形が {\"html\": 空でない文字列, \"aim\": 空でない文字列} ではありません: $json"
-[ ! -e "$out/index.html" ] && [ ! -e "$out/aim.md" ] || usage_error "out フォルダにもう成果物があります: $out"
+if [ -e "$out/index.html" ] || [ -e "$out/aim.md" ]; then usage_error "out フォルダにもう成果物があります: $out"; fi
 
 jq -j '.html' "$json" > "$out/index.html" || { echo "compete-unpack.sh: 書けません: $out/index.html" >&2; exit 1; }
 jq -r '.aim' "$json" > "$out/aim.md" || { echo "compete-unpack.sh: 書けません: $out/aim.md" >&2; exit 1; }

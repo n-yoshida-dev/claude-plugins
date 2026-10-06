@@ -62,8 +62,8 @@ case "$kind" in design|screen) ;; *) usage_error "--kind は design か screen �
 for v in root run coord brief parts; do
   [ -n "${!v}" ] || usage_error "--$v がありません"
 done
-[ -f "$brief" ] && [ -s "$brief" ] || usage_error "ブリーフが無いか空です: $brief"
-[ -f "$parts" ] && [ -s "$parts" ] || usage_error "節の一覧が無いか空です: $parts"
+if [ ! -f "$brief" ] || [ ! -s "$brief" ]; then usage_error "ブリーフが無いか空です: $brief"; fi
+if [ ! -f "$parts" ] || [ ! -s "$parts" ]; then usage_error "節の一覧が無いか空です: $parts"; fi
 [ -f "$BASE_DENY" ] || usage_error "共通の「読ませない場所」の一覧がありません: $BASE_DENY"
 
 root="$(realpath -e -- "$root")" || usage_error "リポジトリのルートを解決できません: $root"
@@ -96,7 +96,7 @@ case "$coord/" in "$run"/*) usage_error "調整役のフォルダを作業場所
 declare -A seen_name=()
 material_paths=()
 for f in "${materials[@]}"; do
-  [ -f "$f" ] && [ -r "$f" ] || usage_error "材料が読めません: $f"
+  if [ ! -f "$f" ] || [ ! -r "$f" ]; then usage_error "材料が読めません: $f"; fi
   p="$(realpath -e -- "$f")" || usage_error "材料のパスを解決できません: $f"
   name="$(basename -- "$p")"
   case "$name" in
