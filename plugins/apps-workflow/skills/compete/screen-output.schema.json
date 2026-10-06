@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "compete の画面案（Codex の作り手の返事）。Codex を読み取り専用で動かすとファイルを書けないので、見本の HTML と狙いを返事に入れさせる。compete-unpack.sh が index.html と aim.md に書く",
+  "properties": {
+    "html": {
+      "type": "string",
+      "description": "index.html の中身（HTML 1 枚。CSS と JavaScript は中に書く）"
+    },
+    "aim": {
+      "type": "string",
+      "description": "aim.md の中身（Markdown。見出しは「## 狙い」「## 節ごとの工夫」「## 文面を変えた所」）"
+    }
+  },
+  "required": ["html", "aim"],
+  "additionalProperties": false
+}

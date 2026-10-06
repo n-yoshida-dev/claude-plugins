@@ -500,6 +500,26 @@ check "知らない指定は終了コード 2" status_is 2
 run --use review -s read-only -f "$T/prompt.md" -o
 check "値の欠けた指定は終了コード 2" status_is 2
 
+echo "--- codex-run.sh：画像を添える（-i） ---"
+
+printf 'png' > "$T/shot-1.png"
+printf 'png' > "$T/shot-2.png"
+(cd "$T" && run --use screen -s read-only -f prompt.md -o out-img.md -C work -i shot-1.png -i "$T/shot-2.png")
+check "-i の画像を絶対パスにして codex の -i で渡す" has_seq -i "$T/shot-1.png" -i "$T/shot-2.png"
+check "-i のあとは -- で区切ってから「-」を渡す" has_seq -i "$T/shot-2.png" -- -
+check "-i を付けても返答を受け取れる" test "$(cat "$T/out-img.md")" = "偽の返答"
+
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md"
+check "-i が無ければ -- を付けない" lacks --
+
+run --use screen -s read-only -f "$T/prompt.md" -o "$T/out.md" -i "$T/no-such.png"
+check "-i の画像が無ければ終了コード 2" status_is 2
+check "-i の画像が無ければ codex を呼ばない" not_called
+
+run --use review --resume fake-thread-1 -s read-only -f "$T/prompt.md" -o "$T/out.md" -i "$T/shot-1.png"
+check "-i と --resume は一緒に使えない（終了コード 2）" status_is 2
+check "-i と --resume のときは codex を呼ばない" not_called
+
 echo
 if [ "$failures" -eq 0 ]; then
   echo "すべて ok"
