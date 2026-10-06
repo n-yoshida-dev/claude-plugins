@@ -15,6 +15,12 @@
 - **フックはプロジェクトに無いものを黙ってスキップする。** `frontend/` `backend/` `TODO.md` が無いリポジトリで
   エラーを出さない
 - **利用側に配る変更は `plugin.json` の `version` を上げる。** 上げないと利用側に届かない
+- **版を上げただけでは、利用側には届かない。** マージしたら Claude が、`claude plugin marketplace update n-yoshida-dev` のあと、
+  apps-workflow を入れている全アプリで `claude plugin update apps-workflow@n-yoshida-dev --scope <project か local>` を実行する
+  （どのアプリにどの範囲で入っているかは `~/.claude/plugins/installed_plugins.json`。app-template だけ local）。
+  終わったら `installed_plugins.json` で全部が新しい版になったことを確かめる。動いているセッションには開き直したときに効く。
+  `claude` は PATH に無いので、VS Code 拡張の中の `~/.vscode-server/extensions/anthropic.claude-code-<版>-linux-x64/resources/native-binary/claude` をフルパスで呼ぶ
+  （2026-10-06 に、全アプリが 1.5.6（portfolio だけ 1.9.0）のまま止まっていて、compete（1.10.0）はどのアプリにも、codex-run.sh（1.6.0〜）は portfolio 以外に届いていなかったと判明。本人の承認「昇格してOKですよ」）
 - 変更したら `claude plugin validate . --strict` と `claude plugin validate plugins/<name> --strict` を通す
 - シェルスクリプトを変えたら `bash -n` と shellcheck も通す。shellcheck はこのマシンに入っていないが、
   `npx --yes shellcheck <ファイル>` でほぼ CI と同じ検査ができる（初回だけバイナリを取得する。2026-09-04 に確認）。
