@@ -80,6 +80,8 @@ for i in $(seq 20); do
   echo "reviews=$r comments=$c summary=$s reactions=$t"
   if [ "$r" -gt 0 ] || [ "$c" -gt 0 ]; then break; fi
   case "$t" in *+1*) break ;; esac
+  # まとめが Failed なら、レビューはもう来ないので抜ける（Completed は 👍 かレビューが付くまで待つ）
+  [ "$s" != "Failed" ] || break
   sleep 30
 done
 ```
@@ -92,6 +94,8 @@ done
     状態を Running → Completed と書き換え、終わったら 👍 を付ける（claude-plugins #28 で、Running から約 1 分半で Completed と 👍）。
     以前の見張りはこのコメントを「指摘が付いた」と数え、レビュー中に抜けていた。`summary=Completed` なのに `reviews` も `+1` も無いまま 10 分たったら、
     下の 1 本目と 2 本目で中身を読み、報告に「Codex のまとめは Completed だが、指摘も 👍 も無かった」と書いて 6 へ
+  - `summary=Failed` で抜けた → 下の 2 本目でまとめの中身を読み、報告に「Codex のレビューが失敗した（まとめの状態が Failed）」と書いて 6 へ
+    （「終わらなかった」「付かなかった」とは書かない。PR #29 で Codex が指摘）
   - `+1` だけ → 報告に「Codex は指摘なし」と書いて 6 へ
   - 10 分たっても `eyes` のまま → 報告に「Codex のレビューが 10 分で終わらなかった」と書いて 6 へ
   - 何も付かない → 報告に「Codex のレビューは付かなかった」と書いて 6 へ
