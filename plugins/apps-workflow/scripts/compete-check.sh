@@ -5,7 +5,8 @@
 # 呼び元： compete スキル（5 節。compete-blind.sh のあと）
 #
 # 調べること：
-#   1. モデル・会社の名前（Opus・Fable・Astra・Sonnet・Haiku・Claude・Anthropic・OpenAI・GPT・ChatGPT・Codex・Gemini）。大文字小文字は区別しない
+#   1. モデル・会社の名前（Opus・Fable・Astra・Sol・Luna・Terra・Sonnet・Haiku・Claude・Anthropic・OpenAI・GPT・ChatGPT・Codex・Gemini）。大文字小文字は区別しない
+#      Sol・Luna・Terra は前後が英字でないときだけ当てる（solution などを拾わないため）
 #      お題によっては中身として正しく出てくる（例：Claude Code を使った作品の紹介）ので、見つけても自動では消さない。
 #      調整役が行を読み、作り手の名乗りなら伏せ字にする
 #   1b. 作り手の札（w- と 16 進 6 桁）と、作り手のフォルダのパス（/makers/）。作り手が材料のパスを案に引くと入る。見つけたら必ず伏せ字にする
@@ -30,7 +31,8 @@ words_file="${2:-}"
 if [ -n "$words_file" ] && [ ! -r "$words_file" ]; then usage_error "禁止語の一覧が読めません: $words_file"; fi
 kind="$(cat -- "$run/kind" 2>/dev/null)" || usage_error "作業場所に kind がありません: $run"
 
-NAMES='opus|fable|astra|sonnet|haiku|claude|anthropic|openai|chatgpt|gpt|codex|gemini'
+# Sol・Luna・Terra（GPT のモデル名の後ろ半分）は短く、solution・console などに含まれるので、前後が英字でないときだけ当てる
+NAMES='opus|fable|astra|sonnet|haiku|claude|anthropic|openai|chatgpt|gpt|codex|gemini|(^|[^a-z])(sol|luna|terra)([^a-z]|$)'
 found=0
 
 # 見つけたものを 1 行出して数える

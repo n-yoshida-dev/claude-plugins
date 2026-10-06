@@ -73,7 +73,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-setup.sh" --kind <design|screen> --r
 ```
 
 - 標準出力の「札<TAB>作り手」（`COORD/workers.tsv` と同じ）を控える。札（`w-` と乱数）は、作り手の名前をフォルダ名に出さないためのもの
-- 作り手は既定で `opus fable astra`。条件を変えた版も比べるとき（試行 3 の「人物像を考慮する版／しない版」）は `--makers "opus fable astra opus-ctx fable-ctx astra-ctx"` のように足し、
+- 作り手は既定で `opus fable codex`。名前は呼び方で、Codex の中で動くモデルは表（`config/codex-models.json`）の用途で決まる（2026-10-06 から GPT-6.1 Sol。それまで名前を `astra` にしていたが、モデルを変えたので取り違えないよう `codex` にした）。
+  記録の README には、名前ではなく、その回に実際に動いたモデル（codex-run.sh の標準エラーの `model=` の行）を書く。条件を変えた版も比べるとき（試行 3 の「人物像を考慮する版／しない版」）は `--makers "opus fable astra opus-ctx fable-ctx astra-ctx"` のように足し、
   版ごとにブリーフを分ける（このスキルの骨組みでは 1 つのブリーフを全員に渡す。版を分けるなら、作り手のフォルダの `input/brief.md` を調整役が差し替える）
 - 終了コード 2 なら、理由を利用者に伝えて止まる（ops・personal の中、`data/` のあるリポジトリ、Git で管理していない材料、非公開の置き場の名前を止めている）
 
@@ -99,7 +100,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-brief.sh" maker "$RUN" <札> <claude
     bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use screen -s read-only --schema "${CLAUDE_PLUGIN_ROOT}/skills/compete/screen-output.schema.json" -f "$RUN/makers/<札>/task.md" -o "$COORD/screen-<作り手>.json" -C "$RUN/makers/<札>" --skip-git-repo-check --events "$COORD/events-maker-<作り手>.jsonl" --deny-read-list "$COORD/deny-read-<作り手>.txt" -i "$RUN/makers/<札>/input/<画像>"
     ```
     終わったら `bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-unpack.sh" "$COORD/screen-<作り手>.json" "$RUN/makers/<札>/out"`
-  - `<作り手>` は `workers.tsv` の作り手の名前（既定は `astra`。`--makers` で版を足したら `astra-ctx` など）
+  - `<作り手>` は `workers.tsv` の作り手の名前（既定は `codex`。`--makers` で版を足したら `codex-ctx` など）
 
 待ち方と決まり：
 
@@ -166,7 +167,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-check.sh" "$RUN" "$COORD/forbidden.t
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-brief.sh" judge "$RUN" fable claude
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-brief.sh" judge "$RUN" astra codex
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-brief.sh" judge "$RUN" codex codex
 ```
 
 同時に起動する。
@@ -174,7 +175,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/compete-brief.sh" judge "$RUN" astra codex
 - Fable：Agent ツール、`model` に `fable`、新しい文脈。プロンプトは「`<RUN>/briefs/judge-fable.md` を読み、その指示どおりに判定する。」の 1 行だけ。判定は `RUN/judges/fable.md` に入る
 - Codex：作り手のフォルダと反論の置き場を読ませない一覧（`deny-read-judge.txt`）を渡す
   ```bash
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f "$RUN/briefs/judge-astra.md" -o "$RUN/judges/astra.md" -C "$RUN" --skip-git-repo-check --events "$COORD/events-judge-astra.jsonl" --deny-read-list "$COORD/deny-read-judge.txt"
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f "$RUN/briefs/judge-codex.md" -o "$RUN/judges/codex.md" -C "$RUN" --skip-git-repo-check --events "$COORD/events-judge-astra.jsonl" --deny-read-list "$COORD/deny-read-judge.txt"
   ```
 
 審査役を 2 つにするのは、Fable の審査役が Fable の作った案を（伏せてあっても）好む偏りを、系統の違う審査役と比べて見えるようにするため（Claude の判断）。

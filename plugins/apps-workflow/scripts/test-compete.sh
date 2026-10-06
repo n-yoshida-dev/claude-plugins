@@ -72,22 +72,22 @@ RUN="$T/run1"; COORD="$T/coord1"
 setup_ok design "$RUN" "$COORD" "$REPO/PLAN.md" "$REPO/docs/canon.md" "$T/shot.png"
 check "作業場所を作れる" status_is 0
 check "作り手 3 つの札を出す" test "$(wc -l < "$COORD/workers.tsv")" -eq 3
-check "札は w- と乱数" test "$(grep -cE '^w-[0-9a-f]{6}	(opus|fable|astra)$' "$COORD/workers.tsv")" -eq 3
-check "作業場所のパスに作り手の名前が出ない" test -z "$(find "$RUN" | grep -iE 'opus|fable|astra')"
+check "札は w- と乱数" test "$(grep -cE '^w-[0-9a-f]{6}	(opus|fable|codex)$' "$COORD/workers.tsv")" -eq 3
+check "作業場所のパスに作り手の名前が出ない" test -z "$(find "$RUN" | grep -iE 'opus|fable|codex')"
 check "kind を書く" test "$(cat "$RUN/kind")" = design
 tag_opus="$(awk -F'\t' '$2 == "opus" { print $1 }' "$COORD/workers.tsv")"
 tag_fable="$(awk -F'\t' '$2 == "fable" { print $1 }' "$COORD/workers.tsv")"
-tag_astra="$(awk -F'\t' '$2 == "astra" { print $1 }' "$COORD/workers.tsv")"
+tag_codex="$(awk -F'\t' '$2 == "codex" { print $1 }' "$COORD/workers.tsv")"
 check "作り手のフォルダにブリーフ・節・材料を複製する" test -f "$RUN/makers/$tag_opus/input/brief.md" -a -f "$RUN/makers/$tag_opus/input/parts.txt" -a -f "$RUN/makers/$tag_opus/input/canon.md" -a -f "$RUN/makers/$tag_opus/input/shot.png"
-check "作り手のフォルダに空の out/ を作る" test -d "$RUN/makers/$tag_astra/out" -a -z "$(ls -A "$RUN/makers/$tag_astra/out")"
-check "Codex の一覧に、ほかの作り手のフォルダを足す" file_has "$COORD/deny-read-astra.txt" "$RUN/makers/$tag_opus"
-check "Codex の一覧に、自分のフォルダは入れない" file_lacks "$COORD/deny-read-astra.txt" "$RUN/makers/$tag_astra"
-check "Codex の一覧に、反論の置き場を足す" grep -qxF "$RUN/rebuttal" "$COORD/deny-read-astra.txt"
-check "Codex の一覧は共通の一覧を含む" file_has "$COORD/deny-read-astra.txt" "/tmp/claude-{uid}"
+check "作り手のフォルダに空の out/ を作る" test -d "$RUN/makers/$tag_codex/out" -a -z "$(ls -A "$RUN/makers/$tag_codex/out")"
+check "Codex の一覧に、ほかの作り手のフォルダを足す" file_has "$COORD/deny-read-codex.txt" "$RUN/makers/$tag_opus"
+check "Codex の一覧に、自分のフォルダは入れない" file_lacks "$COORD/deny-read-codex.txt" "$RUN/makers/$tag_codex"
+check "Codex の一覧に、反論の置き場を足す" grep -qxF "$RUN/rebuttal" "$COORD/deny-read-codex.txt"
+check "Codex の一覧は共通の一覧を含む" file_has "$COORD/deny-read-codex.txt" "/tmp/claude-{uid}"
 check "審査役の一覧に、作り手のフォルダ全体を足す" grep -qxF "$RUN/makers" "$COORD/deny-read-judge.txt"
 check "審査役の一覧に、ほかの審査役の判定の置き場を足す" grep -qxF "$RUN/judges" "$COORD/deny-read-judge.txt"
 coord_abs="$(realpath -m "$COORD")"
-check "作り手の一覧に、調整役のフォルダを足す（scratchpad の外に作っても読ませない）" grep -qxF "$coord_abs" "$COORD/deny-read-astra.txt"
+check "作り手の一覧に、調整役のフォルダを足す（scratchpad の外に作っても読ませない）" grep -qxF "$coord_abs" "$COORD/deny-read-codex.txt"
 check "審査役の一覧に、調整役のフォルダを足す" grep -qxF "$coord_abs" "$COORD/deny-read-judge.txt"
 
 sh_run compete-setup.sh --kind design --root "$REPO" --run "$T/run2" --coord "$T/coord2" --brief "$T/coord-src/brief.md" --parts "$T/coord-src/parts.txt" "$REPO/untracked.md"
@@ -122,8 +122,8 @@ check "依頼書にブリーフが入る" file_has "$RUN/makers/$tag_opus/task.m
 check "依頼書に out/ への書き方が入る" file_has "$RUN/makers/$tag_opus/task.md" "$RUN/makers/$tag_opus/out/"
 check "依頼書に設計案の形が入る" file_has "$RUN/makers/$tag_opus/task.md" "設計案 1 枚"
 check "依頼書に差し込み口が残らない" file_lacks "$RUN/makers/$tag_opus/task.md" "{{"
-sh_run compete-brief.sh maker "$RUN" "$tag_astra" codex
-check "Codex の作り手には返事に本文を書かせる" file_has "$RUN/makers/$tag_astra/task.md" "最後の返事に design.md の本文だけ"
+sh_run compete-brief.sh maker "$RUN" "$tag_codex" codex
+check "Codex の作り手には返事に本文を書かせる" file_has "$RUN/makers/$tag_codex/task.md" "最後の返事に design.md の本文だけ"
 sh_run compete-brief.sh maker "$RUN" w-000000 claude
 check "無い札は止める" status_is 2
 sh_run compete-brief.sh maker "$RUN" "$tag_opus" gemini
@@ -133,7 +133,7 @@ echo "--- compete-blind.sh ---"
 
 # 作り手の成果物（fable は欠けにする）
 printf '# 案\n\n## 問題の捉え方\n\nopus の捉え方\n\n## 提案\n\n案その 1\n' > "$RUN/makers/$tag_opus/out/design.md"
-printf '# 案\n\n## 問題の捉え方\n\n別の捉え方\n\n## 提案\n\n案その 2\n' > "$RUN/makers/$tag_astra/out/design.md"
+printf '# 案\n\n## 問題の捉え方\n\n別の捉え方\n\n## 提案\n\n案その 2\n' > "$RUN/makers/$tag_codex/out/design.md"
 sh_run compete-blind.sh "$RUN" "$COORD"
 check "伏せられる" status_is 0
 check "伏せた案は 2 つ" test "$(wc -l < "$RUN/blind/labels.txt")" -eq 2
@@ -171,21 +171,26 @@ sh_run compete-check.sh "$RUN"
 check "作り手の名前を見つける（終了コード 1）" status_is 1
 check "見つけた行を伏せ字・ファイル・行で出す" out_has "design.md:5: 作り手・会社の名前"
 label_opus="$(awk -F'\t' -v t="$tag_opus" '$2 == t { print $1 }' "$COORD/labels.local.tsv")"
-label_astra="$(awk -F'\t' -v t="$tag_astra" '$2 == t { print $1 }' "$COORD/labels.local.tsv")"
+label_codex="$(awk -F'\t' -v t="$tag_codex" '$2 == t { print $1 }' "$COORD/labels.local.tsv")"
 printf '# 案\n\n## 問題の捉え方\n\n（伏せ字）の捉え方\n\n## 提案\n\n案その 1\n' > "$RUN/blind/$label_opus/design.md"
 sh_run compete-check.sh "$RUN"
 check "名前が無ければ終了コード 0" status_is 0
+printf '# 案\n\n## 問題の捉え方\n\nSol で作った solution と console\n\n## 提案\n\n案その 1\n' > "$RUN/blind/$label_opus/design.md"
+sh_run compete-check.sh "$RUN"
+check "GPT の短いモデル名（Sol）を見つける" out_has "design.md:5: 作り手・会社の名前: Sol で作った"
+check "見つけたのは 1 行だけ（solution・console は拾わない）" out_has "見つかったもの: 1 件"
+printf '# 案\n\n## 問題の捉え方\n\n（伏せ字）の捉え方\n\n## 提案\n\n案その 1\n' > "$RUN/blind/$label_opus/design.md"
 printf '内緒の語 # 説明\n\n' > "$T/forbidden.txt"
-printf '# 案\n\n## 問題の捉え方\n\n内緒の語を含む\n\n## 提案\n\n案その 2\n' > "$RUN/blind/$label_astra/design.md"
+printf '# 案\n\n## 問題の捉え方\n\n内緒の語を含む\n\n## 提案\n\n案その 2\n' > "$RUN/blind/$label_codex/design.md"
 sh_run compete-check.sh "$RUN" "$T/forbidden.txt"
 check "禁止語を見つける" out_has "禁止語「内緒の語」"
-printf '# 案\n\n## 問題の捉え方\n\n材料 %s/input/canon.md を読んだ\n\n## 提案\n\n案その 2\n' "$RUN/makers/$tag_astra" > "$RUN/blind/$label_astra/design.md"
+printf '# 案\n\n## 問題の捉え方\n\n材料 %s/input/canon.md を読んだ\n\n## 提案\n\n案その 2\n' "$RUN/makers/$tag_codex" > "$RUN/blind/$label_codex/design.md"
 sh_run compete-check.sh "$RUN"
 check "案に入った作り手の札・フォルダのパスを見つける" out_has "作り手の札・フォルダ"
-printf '# 案\n\n## 問題の捉え方\n\nなし\n' > "$RUN/blind/$label_astra/design.md"
+printf '# 案\n\n## 問題の捉え方\n\nなし\n' > "$RUN/blind/$label_codex/design.md"
 sh_run compete-check.sh "$RUN"
 check "節の見出しの欠けを見つける" out_has "「## 提案」が 0 回"
-printf '# 案\n\n## 問題の捉え方\n\n別の捉え方\n\n## 提案\n\n案その 2\n' > "$RUN/blind/$label_astra/design.md"
+printf '# 案\n\n## 問題の捉え方\n\n別の捉え方\n\n## 提案\n\n案その 2\n' > "$RUN/blind/$label_codex/design.md"
 
 echo "--- compete-rebuttal.sh ---"
 
@@ -193,15 +198,15 @@ printf '## 割れた点 1\n\n- A は…、B は…\n' > "$COORD/questions.md"
 sh_run compete-rebuttal.sh prepare "$RUN" "$COORD" "$COORD/questions.md"
 check "反論の依頼書を作る" status_is 0
 check "伏せ字を付けた作り手の分だけ出す" test "$(wc -l < "$T/out")" -eq 2
-check "出力に伏せ字を出さない（作り手と依頼書のパスだけ）" test -z "$(cut -f1 "$T/out" | grep -vxE 'opus|astra')"
+check "出力に伏せ字を出さない（作り手と依頼書のパスだけ）" test -z "$(cut -f1 "$T/out" | grep -vxE 'opus|codex')"
 check "作り手に自分の伏せ字を知らせる" file_has "$RUN/rebuttal/$tag_opus/brief.md" "あなたの案は「$label_opus」"
-check "全員に同じ質問を渡す" file_has "$RUN/rebuttal/$tag_astra/brief.md" "## 割れた点 1"
+check "全員に同じ質問を渡す" file_has "$RUN/rebuttal/$tag_codex/brief.md" "## 割れた点 1"
 printf '## 割れた点 1\n\n維持\n' > "$RUN/rebuttal/$tag_opus/answer.md"
 sh_run compete-rebuttal.sh collect "$RUN" "$COORD"
 check "答えを伏せ字の横に集める" same "$RUN/rebuttal/$tag_opus/answer.md" "$RUN/blind/$label_opus/rebuttal.md"
 check "欠けた答えを数える" out_has "欠けた答え: 1 件"
-check "欠けた答えは札で知らせ、作り手の名前を出さない" grep -qF "$tag_astra" "$T/err"
-check "欠けた答えの知らせに作り手の名前が無い" file_lacks "$T/err" "astra"
+check "欠けた答えは札で知らせ、作り手の名前を出さない" grep -qF "$tag_codex" "$T/err"
+check "欠けた答えの知らせに作り手の名前が無い" file_lacks "$T/err" "codex"
 sh_run compete-rebuttal.sh prepare "$RUN" "$COORD" "$COORD/questions.md"
 check "前の回の反論が残っていれば止める" status_is 2
 
@@ -222,13 +227,13 @@ check "レビューの依頼書に札を書かない" no_tag "$RUN/briefs/review
 sh_run compete-brief.sh judge "$RUN" fable claude
 check "審査役の依頼書を作る" status_is 0
 check "並び順を出す" out_has "並び順:"
-check "審査役の依頼書に全部のレビューが入る" file_has "$RUN/briefs/judge-fable.md" "レビュー本文 $label_astra"
+check "審査役の依頼書に全部のレビューが入る" file_has "$RUN/briefs/judge-fable.md" "レビュー本文 $label_codex"
 check "審査役の依頼書に反論の答えが入る" file_has "$RUN/briefs/judge-fable.md" "反論 1 回の答え（案 $label_opus の作り手）"
 check "審査役の依頼書に節の一覧が入る" file_has "$RUN/briefs/judge-fable.md" "問題の捉え方"
 check "審査役の依頼書に節ごとのおすすめの表を求める" file_has "$RUN/briefs/judge-fable.md" "### 節ごとのおすすめ"
 check "審査役の依頼書に札を書かない" no_tag "$RUN/briefs/judge-fable.md"
-sh_run compete-brief.sh judge "$RUN" astra codex
-check "Codex の審査役には返事に本文を書かせる" file_has "$RUN/briefs/judge-astra.md" "最後の返事に判定の本文だけ"
+sh_run compete-brief.sh judge "$RUN" codex codex
+check "Codex の審査役には返事に本文を書かせる" file_has "$RUN/briefs/judge-codex.md" "最後の返事に判定の本文だけ"
 
 echo "--- compete-page.mjs ---"
 

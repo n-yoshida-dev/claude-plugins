@@ -1,7 +1,7 @@
 {
   "about": "用途ごとに Codex のモデルと考える深さを決める表。codex-run.sh --use <用途> で引く。モデルは自動では乗り換えない（新しいモデルが良いとは限らず、使用量も変わるため）。変えるときは比べてから、model・effort・status・why と checkedAt を直す。比べ終えたモデルは、採らなかった場合も knownModels に足す（足さないと新しいモデルの知らせが出続ける）",
   "checkedAt": "2026-10-06",
-  "source": "モデルの名前と一覧は ~/.codex/models_cache.json（2026-10-06 に Codex が取得したもの）。2026-10-06 に 4 用途とも gpt-6-astra・high から gpt-6.1-sol・medium に変えた。本人の言葉は「Astraはやはりトークン使用量がとんでもないから、別のモデルを使う方針にしよう」と、Claude の提案（4 用途とも GPT-6.1 Sol・medium）への「OK」。根拠の調べは Beads ops-h49.6 の 2026-10-06 のコメント（OpenAI のモデルの解説が Codex に gpt-6.1-sol を勧める、Astra とほぼ同じ賢さで API の単価は 1/5、Plus の 5 時間の目安は Astra 5〜45・6.1 Sol 15〜160）。用途ごとに実物で比べたわけではない",
+  "source": "モデルの名前と一覧は ~/.codex/models_cache.json（2026-10-06 に Codex が取得したもの）。2026-10-06 に 4 用途とも gpt-6-astra・high から gpt-6.1-sol・medium に変えた。本人の言葉は「Astraはやはりトークン使用量がとんでもないから、別のモデルを使う方針にしよう」「GPT-6.1 Solとかかな？」と、Claude の提案（4 用途とも GPT-6.1 Sol・medium）への「OK」。根拠の調べは Beads ops-h49.6 の 2026-10-06 のコメント（OpenAI のモデルの解説が Codex に gpt-6.1-sol を勧める、Astra とほぼ同じ賢さで API の単価は 1/5、Plus の 5 時間の目安は Astra 5〜45・6.1 Sol 15〜160（二次情報。OpenAI のヘルプは 403 で直接は読めず））。用途ごとに実物で比べたわけではない",
   "knownModels": [
     "gpt-6.1-sol",
     "gpt-6-astra",
