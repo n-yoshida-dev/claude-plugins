@@ -70,11 +70,13 @@ Codex は、レビュー中は PR に 👀（`eyes`）、指摘が無ければ �
 
 ```bash
 # 30 秒おきに最大 10 分、Codex のレビュー・PR へのコメント・👍 のどれかが付くまで見る
+# まとめのコメント（本文に codex-pull-request-review-summary を含む）は数えず、状態（Running / Completed など）だけを表示する
 for i in $(seq 20); do
   r=$(gh api --paginate 'repos/{owner}/{repo}/pulls/<番号>/reviews' --jq '.[] | select(.user.login | test("codex"; "i")) | .id' | wc -l)
-  c=$(gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | .id' | wc -l)
+  c=$(gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | select(.body | contains("codex-pull-request-review-summary") | not) | .id' | wc -l)
+  s=$(gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | select(.body | contains("codex-pull-request-review-summary")) | .body' | grep -oE 'Running|Completed|Failed' | tail -n 1)
   t=$(gh api --paginate 'repos/{owner}/{repo}/issues/<番号>/reactions' --jq '.[] | select(.user.login | test("codex"; "i")) | .content' | tr '\n' ' ')
-  echo "reviews=$r comments=$c reactions=$t"
+  echo "reviews=$r comments=$c summary=$s reactions=$t"
   if [ "$r" -gt 0 ] || [ "$c" -gt 0 ]; then break; fi
   case "$t" in *+1*) break ;; esac
   sleep 30
@@ -84,7 +86,11 @@ done
 - 最後の行の読み方
   - `reviews` が 1 以上 → 下の 1 本目のコマンドで指摘を読む（指摘は行ごとのコメントに入り、レビューの本文は決まり文句）
   - `comments` が 1 以上 → 下の 2 本目で中身を読む。「You have reached your Codex usage limits」なら、報告に「Codex の利用上限でレビューされなかった」と書いて 6 へ
-    （2026-09-05 に life-plan-simulator #41・#42 で起きた）。それ以外なら指摘として扱う（2026-04 までの古い形式）
+    （2026-09-05 に life-plan-simulator #41・#42 で起きた。2026-10-06 に claude-plugins #27 でも）。それ以外なら指摘として扱う（2026-04 までの古い形式）
+  - `summary` はまとめのコメントの状態で、数えない。2026-10-06 から Codex は PR を開くとすぐ「Codex Review Summary」の表のコメントを付け、
+    状態を Running → Completed と書き換え、終わったら 👍 を付ける（claude-plugins #28 で、Running から約 1 分半で Completed と 👍）。
+    以前の見張りはこのコメントを「指摘が付いた」と数え、レビュー中に抜けていた。`summary=Completed` なのに `reviews` も `+1` も無いまま 10 分たったら、
+    下の 1 本目と 2 本目で中身を読み、報告に「Codex のまとめは Completed だが、指摘も 👍 も無かった」と書いて 6 へ
   - `+1` だけ → 報告に「Codex は指摘なし」と書いて 6 へ
   - 10 分たっても `eyes` のまま → 報告に「Codex のレビューが 10 分で終わらなかった」と書いて 6 へ
   - 何も付かない → 報告に「Codex のレビューは付かなかった」と書いて 6 へ
