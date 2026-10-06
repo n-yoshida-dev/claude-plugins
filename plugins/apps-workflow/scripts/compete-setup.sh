@@ -2,7 +2,7 @@
 # コンペの作業場所を作る。作り手ごとのフォルダに、ブリーフと材料を同じように複製する
 #
 # 使い方： bash compete-setup.sh --kind <design|screen> --root <リポジトリのルート> --run <作業場所> --coord <調整役のフォルダ>
-#                                --brief <ブリーフ.md> --parts <節の一覧.txt> [--makers "opus fable astra"] [材料のファイル ...]
+#                                --brief <ブリーフ.md> --parts <節の一覧.txt> [--makers "opus fable codex"] [材料のファイル ...]
 # 呼び元： compete スキル（3 節）
 #
 # 作るもの（作業場所 RUN。Codex にも読ませるので、Claude の作業用フォルダの外に置く）：
@@ -42,7 +42,7 @@ write_error() {
   exit 1
 }
 
-kind=""; root=""; run=""; coord=""; brief=""; parts=""; makers="opus fable astra"
+kind=""; root=""; run=""; coord=""; brief=""; parts=""; makers="opus fable codex"
 materials=()
 while [ $# -gt 0 ]; do
   case "$1" in
