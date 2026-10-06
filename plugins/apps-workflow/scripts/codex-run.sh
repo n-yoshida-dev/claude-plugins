@@ -22,6 +22,9 @@
 #   --keep-session       会話の記録を ~/.codex/sessions に残す（--ephemeral を付けない）。あとで --resume するときに付ける。
 #                        --resume した回は、--ephemeral を付けても元の会話の記録に追記される（2026-10-05 に実機で確認）
 #   --skip-git-repo-check  Git の管理外のフォルダで動かす
+#   -i <画像>            依頼に画像を添える（codex の -i）。何回でも付けられる。新しく頼むときだけ（--resume とは一緒に使えない）。
+#                        codex の -i は複数のファイルを受け取るので、最後の「-」（標準入力）の前に -- を入れて区切る
+#                        （区切らないと「-」まで画像として飲み込まれる。photo-prompt-builder の KNOWLEDGE.md 2026-10-03）
 #   --deny-read-list <ファイル>  Codex に読ませない場所の一覧（例: config/codex-review-deny-read.txt）。-s read-only のときだけ使える。
 #                        権限のプロファイル（全体は読み取りだけ、一覧の場所は deny）を -c で組み立てて渡す。
 #                        Codex の読み取り専用は、そのままだと作業フォルダの外もどこでも読めるため（2026-10-05 に codex sandbox で確かめた）。
@@ -51,7 +54,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 使い方を標準エラーに出して終了する
 usage_error() {
   echo "codex-run.sh: $1" >&2
-  echo "使い方: bash codex-run.sh (--use <用途> | -m <モデル> -e <effort>) [--resume <thread_id>] -s <read-only|workspace-write> -f <依頼書> -o <結果> [-C フォルダ] [--schema <ファイル>] [--events <ファイル>] [--keep-session] [--skip-git-repo-check] [--deny-read-list <ファイル>]" >&2
+  echo "使い方: bash codex-run.sh (--use <用途> | -m <モデル> -e <effort>) [--resume <thread_id>] -s <read-only|workspace-write> -f <依頼書> -o <結果> [-C フォルダ] [--schema <ファイル>] [--events <ファイル>] [--keep-session] [--skip-git-repo-check] [--deny-read-list <ファイル>] [-i <画像> ...]" >&2
   exit 2
 }
 
@@ -81,6 +84,7 @@ resume_id=""
 keep_session=0
 deny_list_file=""
 skip_git_check=0
+images=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -97,6 +101,7 @@ while [ $# -gt 0 ]; do
     --keep-session) keep_session=1; shift ;;
     --deny-read-list) need_value "$1" $#; deny_list_file="$2"; shift 2 ;;
     --skip-git-repo-check) skip_git_check=1; shift ;;
+    -i) need_value "$1" $#; images+=("$2"); shift 2 ;;
     # 冒頭のコメント（使い方）だけを出す
     -h|--help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) usage_error "知らない指定です: $1" ;;
@@ -115,6 +120,14 @@ if [ ! -f "$prompt_file" ] || [ ! -r "$prompt_file" ]; then
   usage_error "依頼書が読めません: $prompt_file"
 fi
 [ -s "$prompt_file" ] || usage_error "依頼書が空です: $prompt_file"
+if [ "${#images[@]}" -gt 0 ]; then
+  [ -z "$resume_id" ] || usage_error "-i（画像）は新しく頼むときだけ使えます（--resume と一緒には使えません）"
+  for i in "${!images[@]}"; do
+    img="${images[$i]}"
+    if [ ! -f "$img" ] || [ ! -r "$img" ]; then usage_error "画像が読めません: $img"; fi
+    images[i]="$(to_abs "$img")"
+  done
+fi
 
 # モデルと考える深さを決める。用途があれば表から引き、-m・-e があればそれで上書きする
 if [ -n "$use" ]; then
@@ -260,6 +273,9 @@ args+=(--ignore-user-config --disable memories --json -o "$tmp_out")
 [ "$skip_git_check" -eq 1 ] && args+=(--skip-git-repo-check)
 [ -n "$schema_file" ] && args+=(--output-schema "$schema_file")
 [ -n "$resume_id" ] && args+=("$resume_id")
+for img in "${images[@]}"; do args+=(-i "$img"); done
+# -i は複数のファイルを受け取るので、-- で区切ってから「-」を渡す
+[ "${#images[@]}" -eq 0 ] || args+=(--)
 # 最後の「-」は「依頼文を標準入力から読む」の意味
 args+=(-)
 
