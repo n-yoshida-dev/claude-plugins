@@ -141,7 +141,14 @@ while IFS= read -r rel; do
   [ -e "$PLUGIN_ROOT/$rel" ] || missing="$missing $rel"
 done < <(grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]+' "$SKILL_DIR/SKILL.md" | sed 's|^\${CLAUDE_PLUGIN_ROOT}/||' | sort -u)
 check "手順書が指すファイルがすべてある${missing:+（無い:$missing）}" test -z "$missing"
-check "手順書は利用者が打ったときだけ動く（disable-model-invocation）" grep -qxF -- "disable-model-invocation: true" "$SKILL_DIR/SKILL.md"
+# 2026-10-10 から Claude の判断でも呼べる。その代わり、提案して OK をもらってから始める（Beads ops-h49.10）
+# frontmatter に disable-model-invocation の行が無いか
+no_invocation_limit() { ! grep -q '^disable-model-invocation:' "$1"; }
+# frontmatter の description に指定の文字列があるか
+description_has() { grep '^description:' "$1" | grep -qF -- "$2"; }
+check "手順書は Claude の判断でも呼べる（disable-model-invocation の行が無い）" no_invocation_limit "$SKILL_DIR/SKILL.md"
+check "説明に「OK をもらってから始める」がある" description_has "$SKILL_DIR/SKILL.md" "OK をもらってから始める"
+check "手順に「返事が無いまま始めない」がある" grep -qF "返事が無いまま始めない" "$SKILL_DIR/SKILL.md"
 
 # 手順書で codex-run.sh を呼ぶ行（-C の有無を問わず全部）が、すべて作業フォルダに書き出し（$TREE）を渡し、
 # 読ませない場所の一覧を付けているか（リポジトリそのものを渡すと、gitignore の PRIVATE.md なども Codex が読めるため。
