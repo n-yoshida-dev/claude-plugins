@@ -284,7 +284,14 @@ check "形の違う JSON のときは何も書かない" test -z "$(ls -A "$T/un
 
 echo "--- 手順書（SKILL.md） ---"
 
-check "利用者が打ったときだけ動く" grep -qx 'disable-model-invocation: true' "$SKILL_DIR/SKILL.md"
+# 2026-10-10 から Claude の判断でも呼べる。その代わり、提案して OK をもらってから始める（Beads ops-h49.10）
+# frontmatter に disable-model-invocation の行が無いか
+no_invocation_limit() { ! grep -q '^disable-model-invocation:' "$1"; }
+# frontmatter の description に指定の文字列があるか
+description_has() { grep '^description:' "$1" | grep -qF -- "$2"; }
+check "Claude の判断でも呼べる（disable-model-invocation の行が無い）" no_invocation_limit "$SKILL_DIR/SKILL.md"
+check "説明に「OK をもらってから始める」がある" description_has "$SKILL_DIR/SKILL.md" "OK をもらってから始める"
+check "手順に「返事が無いまま始めない」がある" grep -qF "返事が無いまま始めない" "$SKILL_DIR/SKILL.md"
 skill_refs_exist() {
   local ref
   # 手順書の ${CLAUDE_PLUGIN_ROOT} は展開せず、文字として探す
