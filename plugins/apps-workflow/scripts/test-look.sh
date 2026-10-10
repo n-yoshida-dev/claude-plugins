@@ -101,6 +101,7 @@ check "session_id が無ければ毎回知らせる（2 回目）" notified "$AP
 CONFIG="$PLUGIN/config/look-tools.json"
 check "表の道具に版がある" jq_true '.playwright.version and .impeccable.version and .designMd.version and .impeccable.license and .designMd.license' "$CONFIG"
 check "表の既定の大きさが sizes にある" jq_true '.defaultSizes - (.sizes | keys) == [] and (.defaultSizes | length > 0)' "$CONFIG"
+check "表に Artifact の上限と出典がある" jq_true '.artifact.limitMB > .artifact.stopAtMB and (.artifact.source | length > 0) and (.artifact.checkedAt | length > 0)' "$CONFIG"
 check "表に確認日がある" jq_true '.checkedAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")' "$CONFIG"
 
 # --- look.mjs（ブラウザを使わない部分） ---

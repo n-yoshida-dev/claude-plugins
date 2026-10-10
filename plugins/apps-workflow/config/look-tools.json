@@ -21,6 +21,13 @@
     "source": "https://github.com/google-labs-code/design.md",
     "why": "DESIGN.md の書式の検査。節の順・{colors.x} の参照切れ・部品の文字と背景の濃さの差を見る。見た目の良し悪しは見ない"
   },
+  "artifact": {
+    "limitMB": 16,
+    "stopAtMB": 15,
+    "source": "Claude Code の Artifact ツールの説明（Size：描いたページは 16MB 以下。埋めた data: URI も数える）",
+    "checkedAt": "2026-10-11",
+    "why": "比較ページは画像を data URI で埋めた 1 枚にするので、上限に近づいたら page が止まる。stopAtMB は上限より少し手前に置いた"
+  },
   "sizes": {
     "wide": { "width": 1280, "height": 800 },
     "laptop": { "width": 1024, "height": 700 },
@@ -28,5 +35,6 @@
   },
   "defaultSizes": ["wide", "phone"],
   "defaultSchemes": ["light", "dark"],
-  "maxScreens": 4
+  "maxScreens": 8,
+  "maxScreensWhy": "1 つの大きさで撮る枚数の上限。初めは 4 にしたが、photo-prompt-builder のスマホの画面（高さ約 4,600px）が下まで写らず、点検役が台紙とボタンを「確かめられなかった」と返した（2026-10-11 の確認）ので 8 にした"
 }

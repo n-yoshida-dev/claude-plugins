@@ -3,7 +3,7 @@
 // 撮影（shoot）・Impeccable の検出器（detect）・DESIGN.md の検査（lint）・比較ページ（page）・画素と濃さの差の測定（pixel / contrast）を 1 本にまとめる。
 // 外部の道具の版と画面の大きさは ../config/look-tools.json にある。使い方は `node look.mjs --help`
 import { createRequire } from 'node:module'
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, readdirSync, unlinkSync } from 'node:fs'
 import { dirname, join, resolve, basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -18,7 +18,9 @@ const HELP = `使い方: node look.mjs <命令> ...
         [--screens 4] [--wait セレクタ] [--css 見本のCSS] [--setup 準備.mjs] [--full]
       画面を 1 画面分ずつ上から撮り（PNG・2 倍）、横のはみ出し・画面のエラー・外部への通信を数える。
       ファイル名は <接頭辞><大きさ>[-dark]-<番号>.png（例: current-wide-dark-1.png）。
-      --css は、ビルドの CSS を外して見本の CSS を入れてから撮る（見た目の方向の見本を作るとき）。
+      上に貼り付く見出しがあれば、その高さだけ重ねて撮る。同じ名前の古い画像は先に消す。
+      --css は、画面の CSS（link と style）を全部外し、見本の CSS だけを入れてから撮る（見た目の方向の見本を作るとき。
+      アプリの CSS が 1 枚でないなら、変更前の画面をこれで作らない）。
       --setup は default export の関数 (page, { size, scheme, viewport }) を撮る前に呼ぶ。
       お気に入りを 1 件入れるなど、画面に中身を出す操作に使う。文字列を返すと結果の行に足す。
       撮る前にマウスを左上の隅へ動かす（行の上に残ると hover の色が写り、選んでいない行が選ばれて見えるため）。
@@ -179,22 +181,36 @@ async function shoot(config, argv) {
           if (typeof r === 'string' && r) note = ` / ${r}`
         }
         await page.mouse.move(1, 1)
-        await page.evaluate(() => window.scrollTo(0, 0))
-        await page.waitForTimeout(200)
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
         const total = await page.evaluate(() => document.documentElement.scrollHeight)
-        const n = Math.min(maxScreens, Math.ceil(total / viewport.height))
+        // 上に貼り付く見出し（fixed・sticky で、画面の上半分に収まるもの）の高さだけ重ねて撮る。重ねないと、次の 1 枚で見出しの下に隠れた帯がどの画像にも写らない
+        const header = await page.evaluate((h) => {
+          window.scrollTo(0, h)
+          let bottom = 0
+          for (const el of document.querySelectorAll('body *')) {
+            const pos = getComputedStyle(el).position
+            if (pos !== 'fixed' && pos !== 'sticky') continue
+            const r = el.getBoundingClientRect()
+            if (r.top <= 1 && r.bottom > 0 && r.bottom < window.innerHeight / 2) bottom = Math.max(bottom, r.bottom)
+          }
+          return Math.ceil(bottom)
+        }, viewport.height)
+        const step = viewport.height - header
+        const n = Math.min(maxScreens, 1 + Math.max(0, Math.ceil((total - viewport.height) / step)))
         const stem = `${prefix}${size.name}${scheme === 'dark' ? '-dark' : ''}`
+        // 前に同じフォルダで撮った同じ名前の画像を消す。残すと、枚数が減ったときに古い画像を今の画面として点検してしまう
+        const stale = new RegExp(`^${stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(\\d+|full)\\.png$`)
+        for (const f of readdirSync(out)) if (stale.test(f)) unlinkSync(join(out, f))
         for (let i = 0; i < n; i++) {
-          await page.evaluate((y) => window.scrollTo(0, y), i * viewport.height)
+          await page.evaluate((y) => window.scrollTo(0, y), i * step)
           await page.waitForTimeout(150)
           await page.screenshot({ path: join(out, `${stem}-${i + 1}.png`) })
         }
         if (opts.full) await page.screenshot({ path: join(out, `${stem}-full.png`), fullPage: true })
-        const rest = total - n * viewport.height
+        const rest = total - (viewport.height + (n - 1) * step)
         const restNote = rest > 0 ? ` / 下の ${rest}px は撮っていない（--screens で増やす）` : ''
         console.log(
-          `${stem}（${viewport.width}×${viewport.height}）: 高さ ${total}px・${n} 枚 / 横のはみ出し ${overflow}px / 画面のエラー ${errors.length} 件${note}${restNote}`,
+          `${stem}（${viewport.width}×${viewport.height}）: 高さ ${total}px・${n} 枚${header ? `（上の見出しの ${header}px だけ重ねた）` : ''} / 横のはみ出し ${overflow}px / 画面のエラー ${errors.length} 件${note}${restNote}`,
         )
         for (const e of errors) console.log(`  エラー: ${e.slice(0, 300)}`)
         if (overflow > 0 || errors.length > 0) attention++
@@ -397,9 +413,10 @@ ${spec.ask ? `<footer>${ask}</footer>` : ''}
   }
   const bytes = statSync(outPath).size
   console.log(`${outPath}: ${(bytes / 1024 / 1024).toFixed(1)}MB・画像 ${embedded.size} 枚`)
-  // Artifact の上限は 16MB（埋めた画像も数える）
-  if (bytes > 15 * 1024 * 1024) {
-    console.log('15MB を超えた。Artifact の上限 16MB に近いので、画像を減らすか 2 ページに分ける')
+  // Artifact の上限（埋めた画像も数える）。値と出典は表の artifact
+  const { limitMB, stopAtMB } = config.artifact
+  if (bytes > stopAtMB * 1024 * 1024) {
+    console.log(`${stopAtMB}MB を超えた。Artifact の上限 ${limitMB}MB に近いので、画像を減らすか 2 ページに分ける`)
     process.exitCode = 1
   }
 }
