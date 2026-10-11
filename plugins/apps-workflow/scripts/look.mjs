@@ -15,7 +15,7 @@ const configPath = join(here, '..', 'config', 'look-tools.json')
 const HELP = `使い方: node look.mjs <命令> ...
 
   shoot <URL> <出力フォルダ> [--name 接頭辞] [--sizes wide,phone] [--schemes light,dark]
-        [--screens 4] [--wait セレクタ] [--css 見本のCSS] [--setup 準備.mjs] [--full]
+        [--screens 8] [--wait セレクタ] [--css 見本のCSS] [--setup 準備.mjs] [--full]
       画面を 1 画面分ずつ上から撮り（PNG・2 倍）、横のはみ出し・画面のエラー・外部への通信を数える。
       ファイル名は <接頭辞><大きさ>[-dark]-<番号>.png（例: current-wide-dark-1.png）。
       上に貼り付く見出しがあれば、その高さだけ重ねて撮る。同じ名前の古い画像は先に消す。

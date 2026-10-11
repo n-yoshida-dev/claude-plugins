@@ -15,7 +15,7 @@
 | `slot-machine/writing-2-reviewer.md` | 同 `profiles/writing/2-reviewer.md` | MIT | 文章・設計案 1 案のレビュー役。該当箇所の引用を必須にする。compete スキルのレビュー役（設計案・画面案） | `{{SPEC}}` `{{IMPLEMENTER_REPORT}}` `{{PROJECT_CONTEXT}}` `{{WORKTREE_PATH}}` `{{SLOT_NUMBER}}` `{{APPROACH_HINT_USED}}` |
 | `slot-machine/writing-3-judge.md` | 同 `profiles/writing/3-judge.md` | MIT | 文章・設計案の審査役。ブリーフで足切り → 重大な問題の数で比べる → 複数案の良い所を節ごとに組み合わせる計画（SYNTHESIZE）も出せる。compete スキルの審査役 | `{{SLOT_COUNT}}` `{{SPEC}}` `{{ALL_SCORECARDS}}` `{{WORKTREE_PATHS}}` |
 | `codex-pr-review/verifier-claude-prompt.md` | 0-to-1-Labs/codex-pr-review `scripts/verifier-claude-prompt.md` | MIT | 別の系統のモデル（例: Codex）の指摘 1 件を、原典の行と照らして confirmed / refuted / inconclusive で確かめる | `{{REVIEW_RULES}}` `{{FINDING}}` `{{FILE_PATH}}` `{{FILE_CONTENT}}` `{{DIFF_HUNK}}` |
-| `codex-pr-review/verifier-output-schema.json` | 同 `scripts/verifier-output-schema.json` | MIT | 上の検証の出力の形（JSON Schema）。`codex-run.sh --schema` に渡す想定（実機では未確認） | なし |
+| `codex-pr-review/verifier-output-schema.json` | 同 `scripts/verifier-output-schema.json` | MIT | 上の検証の出力の形（JSON Schema）。codex-review スキルが、確かめ役の返事の形を確かめる基準に使う（`codex-run.sh --schema` には渡していない） | なし |
 | `crazytieguy-codex-plugin-cc/plan-review.md` | Crazytieguy/codex-plugin-cc `plugins/codex/prompts/plan-review.md` | Apache-2.0 | 設計書・計画を Codex に厳しく読ませる（相互レビューの設計書向け、コンペの反論の土台） | `{{PLAN_CONTENT}}` |
 
 コミットと本文の sha256 は `sources.json`。ライセンスの全文は各フォルダの `LICENSE.<出どころ>`（Crazytieguy の分は著作権の表示 `NOTICE.crazytieguy-codex-plugin-cc` も）。
