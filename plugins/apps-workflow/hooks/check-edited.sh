@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # PostToolUse(Edit|Write) — 編集した直後に、その言語のチェックを回す
 #
-# frontend/*.ts(x) を触ったら typecheck と lint（package.json の lint スクリプトに合わせて oxlint か eslint）、backend/*.go を触ったら go vet。
+# frontend/*.ts(x) を触ったら typecheck と lint（package.json の lint スクリプトに書かれた oxlint・eslint。両方あれば両方）、backend/*.go を触ったら go vet。
+# lint スクリプトのオプション（--deny-warnings など）は引き継がない。名前だけを見て、編集した 1 ファイルに当てる。
 # 対象のディレクトリがまだ無い間（プロジェクト初期化より前）は何もしない。
 #
 # 結果は hookSpecificOutput.additionalContext で返し、意図的にブロックはしない。
