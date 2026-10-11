@@ -11,6 +11,10 @@
 #   - `- [x]` を完了、`- [ ]` を未完として数える。字下げした子項目も 1 件と数える
 #   - 見出しに「確認待ち」を含む節はユーザーの回答待ちなので、合計に入れず別枠で出す
 #   - 見出しに「保留」を含む節は急がない持ち越しなので、合計に入れず別枠で出す
+#   - 見出しに「公開後」を含む節は公開のあとに回した改善なので、合計に入れず別枠で出す
+#   - 見出しに「公開」を含む最初の節（「公開後」は除く）を公開の節とし、TODO の上からその節までの未完を「公開まで残り」として出す。
+#     公開の節だけでなく上の節も数えるのは、上の節（設計・最初の画面）が終わらないと公開できないため。公開の節が無ければこの行は出さない
+#     （2026-10-11 の合意。ops の docs/2026-10-11-apps-リリースまで届く開発の進め方.md「決定」の 1・2）
 #   - タスクが 0 件のフェーズは「タスク未定義」と表示し、合計の隣に数を添える（100% でも後ろに未定義の段階が残ることを見せる）
 #   - 「前回の区切りから」は、HANDOFF.md を最後にコミットした時点の TODO.md と比べる。
 #     区切り以降に TODO.md が変わっていなければ（セッション開始直後など）、ひとつ前の区切りと比べて前回のセッション分を出す
@@ -32,24 +36,36 @@ render_table() {
     }
     function pct(d, t) { return (t > 0) ? int(100 * d / t) : 0 }
     function register(s) { if (!(s in seen)) { seen[s] = 1; order[++n] = s } }
-    BEGIN { W = 20; kind = "phase"; sec = "（見出しなし）" }
+    # 見出しの種類を決める。「公開後」は「公開」を含むので、公開の節より先に見る
+    function kind_of(s) {
+      if (s ~ /確認待ち/) return "ask"
+      if (s ~ /保留/) return "hold"
+      if (s ~ /公開後/) return "after"
+      return "phase"
+    }
+    BEGIN { W = 20; kind = "phase"; sec = "（見出しなし）"; release = "" }
     /^## / {
       sec = $0; sub(/^## +/, "", sec)
-      kind = (sec ~ /確認待ち/) ? "ask" : (sec ~ /保留/) ? "hold" : "phase"
-      if (kind == "phase") register(sec)
+      kind = kind_of(sec)
+      if (kind == "phase") {
+        register(sec)
+        if (release == "" && sec ~ /公開/) release = sec
+      }
       next
     }
     /^[ \t]*- \[[xX]\]/ {
-      if (kind == "ask") ask_done++; else if (kind == "hold") hold_done++; else { register(sec); done[sec]++ }
+      if (kind == "ask") ask_done++; else if (kind == "hold") hold_done++; else if (kind == "after") after_done++; else { register(sec); done[sec]++ }
       next
     }
     /^[ \t]*- \[ \]/ {
-      if (kind == "ask") ask_open++; else if (kind == "hold") hold_open++; else { register(sec); open[sec]++ }
+      if (kind == "ask") ask_open++; else if (kind == "hold") hold_open++; else if (kind == "after") after_open++; else { register(sec); open[sec]++ }
       next
     }
     END {
       for (i = 1; i <= n; i++) {
         s = order[i]; d = done[s] + 0; o = open[s] + 0; t = d + o
+        # 公開の節とその上の節の未完を足す（公開の節の後ろは数えない）
+        if (release != "" && !past_release) { release_open += o; if (s == release) past_release = 1 }
         if (t == 0) { undefined++; printf "%s   -   （タスク未定義）  %s\n", bar(0, 0), s; continue }
         td += d; to += o
         printf "%s %3d%%  残り %2d / %2d  %s\n", bar(d, t), pct(d, t), o, t, s
@@ -58,17 +74,19 @@ render_table() {
       printf "%s %3d%%  残り %2d / %2d  合計", bar(td, t), pct(td, t), to, t
       if (undefined > 0) printf "（ほかに未定義のフェーズ %d）", undefined
       printf "\n"
+      if (release != "") printf "公開まで残り %d 件（TODO の上から「%s」の節までの未完）\n", release_open, release
       if (ask_open + ask_done > 0) printf "あなたの回答待ち：%d 件（回答済み %d 件）\n", ask_open, ask_done
       if (hold_open + hold_done > 0) printf "保留（合計に含めない）：%d 件（済み %d 件）\n", hold_open, hold_done
+      if (after_open + after_done > 0) printf "公開後（合計に含めない）：%d 件（済み %d 件）\n", after_open, after_done
     }
   ' "$1"
 }
 
-# 引数のファイル（- なら標準入力）について「完了 未完」の 2 数を出す。確認待ち・保留は除く
+# 引数のファイル（- なら標準入力）について「完了 未完」の 2 数を出す。確認待ち・保留・公開後は除く
 count_phase() {
   awk '
     BEGIN { kind = "phase" }
-    /^## / { kind = ($0 ~ /確認待ち/) ? "ask" : ($0 ~ /保留/) ? "hold" : "phase"; next }
+    /^## / { kind = ($0 ~ /確認待ち/) ? "ask" : ($0 ~ /保留/) ? "hold" : ($0 ~ /公開後/) ? "after" : "phase"; next }
     kind == "phase" && /^[ \t]*- \[[xX]\]/ { d++ }
     kind == "phase" && /^[ \t]*- \[ \]/ { o++ }
     END { print d + 0, o + 0 }
