@@ -124,9 +124,9 @@ BARE="$WORK/bare"
 mkdir -p "$BARE/frontend/src"
 run_hook "$BARE" "$BARE/frontend/src/a.ts" > "$WORK/out"
 check "package.json が無ければ何も呼ばない" bash -c "[ ! -s '$WORK/log' ]"
-: > "$BARE/package.json"
+jq -n '{scripts: {typecheck: "tsc", lint: "oxlint"}}' > "$BARE/package.json"
 run_hook "$BARE" "$BARE/src/a.ts" > "$WORK/out"
-check "frontend/ があれば、直下に package.json があっても直下は見ない" bash -c "[ ! -s '$WORK/log' ]"
+check "frontend/ があれば、直下に package.json（typecheck・lint 付き）があっても直下は見ない" bash -c "[ ! -s '$WORK/log' ]"
 
 # サイトがリポジトリ直下にあるアプリ（portfolio の形：frontend/ が無く、直下に package.json）
 make_root_site() {
@@ -147,6 +147,8 @@ run_hook "$SITE" "$SITE/.astro/types.d.ts" > "$WORK/out"
 check "直下のサイトでも Astro が作る型（.astro/）は見ない" bash -c "[ ! -s '$WORK/log' ]"
 run_hook "$SITE" "$SITE/node_modules/x/index.d.ts" > "$WORK/out"
 check "直下のサイトでも依存（node_modules）は見ない" bash -c "[ ! -s '$WORK/log' ]"
+run_hook "$SITE" "$SITE/dist/_astro/a.ts" > "$WORK/out"
+check "直下のサイトでもビルドの成果物（dist）は見ない" bash -c "[ ! -s '$WORK/log' ]"
 TOOLS=$(make_root_site '{"format":"prettier --write ."}')
 run_hook "$TOOLS" "$TOOLS/src/a.ts" > "$WORK/out"
 check "直下の package.json に typecheck が無ければ tsc を呼ばない" bash -c "[ ! -s '$WORK/log' ]"
