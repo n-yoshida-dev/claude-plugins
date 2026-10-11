@@ -154,7 +154,7 @@ run_hook "$TOOLS" "$TOOLS/src/a.ts" > "$WORK/out"
 check "直下の package.json に typecheck が無ければ tsc を呼ばない" bash -c "[ ! -s '$WORK/log' ]"
 
 # 同じリポジトリの別の作業フォルダ（git worktree）
-G=(git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main)
+G=(git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main -c commit.gpgsign=false -c core.hooksPath=/dev/null)
 REPO=$(make_app '{"lint":"oxlint","typecheck":"tsc -b --noEmit"}')
 OTHER=$(make_app '{"lint":"oxlint","typecheck":"tsc -b --noEmit"}')
 : > "$REPO/frontend/src/a.ts"

@@ -98,7 +98,7 @@ check "session_id が無ければ毎回知らせる（1 回目）" notified "$AP
 check "session_id が無ければ毎回知らせる（2 回目）" notified "$APP" "$APP/frontend/src/a.css" ""
 
 # 同じリポジトリの別の作業フォルダ（git worktree）。リポジトリの本体には DESIGN.md が無く、作業フォルダのブランチにだけある
-G=(git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main)
+G=(git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main -c commit.gpgsign=false -c core.hooksPath=/dev/null)
 REPO="$WORK/repo"
 OTHER="$WORK/other-repo"
 mkdir -p "$REPO/frontend/src" "$OTHER/frontend/src"
