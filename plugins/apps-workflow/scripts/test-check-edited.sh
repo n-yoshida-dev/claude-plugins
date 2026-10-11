@@ -153,6 +153,31 @@ TOOLS=$(make_root_site '{"format":"prettier --write ."}')
 run_hook "$TOOLS" "$TOOLS/src/a.ts" > "$WORK/out"
 check "直下の package.json に typecheck が無ければ tsc を呼ばない" bash -c "[ ! -s '$WORK/log' ]"
 
+# 同じリポジトリの別の作業フォルダ（git worktree）
+G=(git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main -c commit.gpgsign=false -c core.hooksPath=/dev/null)
+REPO=$(make_app '{"lint":"oxlint","typecheck":"tsc -b --noEmit"}')
+OTHER=$(make_app '{"lint":"oxlint","typecheck":"tsc -b --noEmit"}')
+: > "$REPO/frontend/src/a.ts"
+: > "$OTHER/frontend/src/a.ts"
+"${G[@]}" -C "$REPO" init -q && "${G[@]}" -C "$REPO" add -A && "${G[@]}" -C "$REPO" commit -q -m init
+"${G[@]}" -C "$OTHER" init -q && "${G[@]}" -C "$OTHER" add -A && "${G[@]}" -C "$OTHER" commit -q -m init
+"${G[@]}" -C "$REPO" worktree add -q "$WORK/wt-deps" -b with-deps
+"${G[@]}" -C "$REPO" worktree add -q "$WORK/wt-nodeps" -b no-deps
+mkdir -p "$WORK/wt-deps/frontend/node_modules"
+
+run_hook "$REPO" "$WORK/wt-deps/frontend/src/a.ts" > "$WORK/out"
+check "別の作業フォルダ（依存あり）でも typecheck を呼ぶ" called "npm run --silent typecheck"
+check "別の作業フォルダでは、その作業フォルダのファイルに lint を当てる" called "npx --no-install oxlint $WORK/wt-deps/frontend/src/a.ts"
+run_hook "$REPO" "$WORK/wt-deps/frontend/src/a.ts" "typecheck" > "$WORK/out"
+check "別の作業フォルダで typecheck が失敗したら知らせる" out_has "[typecheck 失敗]"
+run_hook "$REPO" "$WORK/wt-nodeps/frontend/src/a.ts" > "$WORK/out"
+check "別の作業フォルダに node_modules が無ければ何も呼ばない" bash -c "[ ! -s '$WORK/log' ]"
+check "別の作業フォルダに node_modules が無ければ知らせない" out_empty
+run_hook "$REPO" "$OTHER/frontend/src/a.ts" > "$WORK/out"
+check "別のリポジトリのファイルでは何も呼ばない" bash -c "[ ! -s '$WORK/log' ]"
+run_hook "$REPO" "$REPO/frontend/src/a.ts" > "$WORK/out"
+check "本体（git の中）のファイルは今までどおり typecheck を呼ぶ" called "npm run --silent typecheck"
+
 echo
 if [ "$failures" -gt 0 ]; then
   echo "NG が $failures 件"
