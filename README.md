@@ -14,7 +14,7 @@ Claude Code プラグインのマーケットプレイス。
 
 | 名前 | 内容 |
 |---|---|
-| [apps-workflow](plugins/apps-workflow/) | フック3種（秘密情報のコミット阻止・編集直後の typecheck/lint/vet・起動時の進捗表と TODO 提示）＋ `/progress`（進捗表）＋ `/handoff` ＋ `/pr-check` ＋ `/pr-flow`（PR からマージまでの手順）＋ `/dashboard`（開発ダッシュボードの作り方とテンプレート）＋ `acceptance-reviewer` エージェント（マージ前の受け入れレビュー） |
+| [apps-workflow](plugins/apps-workflow/) | フック4種（秘密情報のコミット阻止・編集直後の typecheck/lint/vet・起動時の進捗表と TODO 提示・画面のファイルを変えたときの DESIGN.md と見た目の点検の知らせ）＋ `/progress`（進捗表）＋ `/handoff` ＋ `/pr-check` ＋ `/pr-flow`（PR からマージまでの手順）＋ `/dashboard`（開発ダッシュボードの作り方とテンプレート）＋ `/codex-review` ＋ `/compete` ＋ `/look`（見た目の方向を決める・画面を変えた PR ごとの点検）＋ `acceptance-reviewer` エージェント（マージ前の受け入れレビュー）＋ `look-reviewer` エージェント（見た目の点検役）。一覧は [plugins/apps-workflow/README.md](plugins/apps-workflow/README.md) |
 
 ## 使い方（アプリ側）
 

@@ -21,6 +21,11 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/check-edited.sh\"",
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/look-notice.sh\"",
+            "timeout": 10
           }
         ]
       }

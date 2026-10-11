@@ -1,0 +1,40 @@
+{
+  "about": "look スキルと scripts/look.mjs が使う外部の道具の版と、撮る画面の大きさ。道具の版は外部が決める値なので、スクリプトに直書きせずここに置く。版を上げるときは、photo-prompt-builder など 1 アプリで shoot・detect・lint を 1 回ずつ通してから checkedAt を直す",
+  "checkedAt": "2026-10-11",
+  "decidedIn": "ops の docs/2026-10-10-apps-デザイン改善の進め方.md 4〜6 節（本人の OK は Beads ops-ard.1）と、photo-prompt-builder の試行の結果（KNOWLEDGE.md 2026-10-10・2026-10-11、Beads ops-ard のコメント）",
+  "playwright": {
+    "version": "1.63.0",
+    "dir": "~/.cache/apps-workflow/look",
+    "why": "photo-prompt-builder の試行で撮影に使った版。各アプリに Playwright が入っているとは限らない（2026-10-11 時点で入っているのは skill-matrix だけ）ので、共通の場所に 1 つ入れて使う。場所は環境変数 LOOK_PLAYWRIGHT_DIR で変えられる"
+  },
+  "impeccable": {
+    "package": "impeccable",
+    "version": "4.5.2",
+    "license": "Apache-2.0",
+    "source": "https://github.com/pbakaus/impeccable",
+    "why": "AI がよく作る形と使いやすさの基本を、動いている画面の URL から機械で拾う検出器。試行で点検役と拾うものが違った（クリーム色の地は検出器だけが拾い、box-shadow: inset で描いた左の色帯は検出器が拾わなかった）ので両方当てる。プラグイン（スキル）は入れず、検出器だけを npx で呼ぶ（進め方の文書 4 節）"
+  },
+  "designMd": {
+    "package": "@google/design.md",
+    "version": "0.4.0",
+    "license": "Apache-2.0",
+    "source": "https://github.com/google-labs-code/design.md",
+    "why": "DESIGN.md の書式の検査。節の順・{colors.x} の参照切れ・部品の文字と背景の濃さの差を見る。見た目の良し悪しは見ない"
+  },
+  "artifact": {
+    "limitMB": 16,
+    "stopAtMB": 15,
+    "source": "Claude Code の Artifact ツールの説明（Size：描いたページは 16MB 以下。埋めた data: URI も数える）",
+    "checkedAt": "2026-10-11",
+    "why": "比較ページは画像を data URI で埋めた 1 枚にするので、上限に近づいたら page が止まる。stopAtMB は上限より少し手前に置いた"
+  },
+  "sizes": {
+    "wide": { "width": 1280, "height": 800 },
+    "laptop": { "width": 1024, "height": 700 },
+    "phone": { "width": 375, "height": 812 }
+  },
+  "defaultSizes": ["wide", "phone"],
+  "defaultSchemes": ["light", "dark"],
+  "maxScreens": 8,
+  "maxScreensWhy": "1 つの大きさで撮る枚数の上限。初めは 4 にしたが、photo-prompt-builder のスマホの画面（高さ約 4,600px）が下まで写らず、点検役が台紙とボタンを「確かめられなかった」と返した（2026-10-11 の確認）ので 8 にした"
+}
