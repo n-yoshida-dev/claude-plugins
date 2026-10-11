@@ -73,7 +73,8 @@ function projectName() {
 
 /**
  * TODO.md を apps-workflow の progress.sh と同じ規則で数える。
- * `## ` 見出し = フェーズ。見出しに「確認待ち」を含む節は回答待ち、「保留」を含む節は保留として合計から外す。
+ * `## ` 見出し = フェーズ。見出しに「確認待ち」を含む節は回答待ち、「保留」か「公開後」を含む節は保留として合計から外す
+ * （progress.sh は「公開後」を別の行に出すが、この画面は保留の数を見せないので同じ箱に入れる）。
  * 字下げした子項目も 1 件と数える。未完タスクの一覧は先頭レベルだけを取る。
  */
 function readTodo() {
@@ -99,7 +100,7 @@ function readTodo() {
     let m
     if ((m = line.match(/^## +(.+)$/))) {
       section = m[1].trim()
-      kind = /確認待ち/.test(section) ? 'ask' : /保留/.test(section) ? 'hold' : 'phase'
+      kind = /確認待ち/.test(section) ? 'ask' : /保留|公開後/.test(section) ? 'hold' : 'phase'
       sub = ''
       if (kind === 'phase') phaseOf(section)
       return
