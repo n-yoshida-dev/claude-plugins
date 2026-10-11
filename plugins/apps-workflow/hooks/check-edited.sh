@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PostToolUse(Edit|Write) — 編集した直後に、その言語のチェックを回す
 #
-# frontend/*.ts(x) を触ったら typecheck と eslint、backend/*.go を触ったら go vet。
+# frontend/*.ts(x) を触ったら typecheck と lint（package.json の lint スクリプトに合わせて oxlint か eslint）、backend/*.go を触ったら go vet。
 # 対象のディレクトリがまだ無い間（プロジェクト初期化より前）は何もしない。
 #
 # 結果は hookSpecificOutput.additionalContext で返し、意図的にブロックはしない。
@@ -35,11 +35,17 @@ case "$FILE" in
         REPORT="${REPORT}[tsc --noEmit 失敗]"$'\n'"$OUT"$'\n'
     fi
 
-    # lint：編集した1ファイルだけを対象にする（全体を回すと編集のたびに遅くなる）
-    if jq -e '.scripts.lint' "$FRONTEND/package.json" >/dev/null 2>&1; then
-      OUT=$(cd "$FRONTEND" && npx --no-install eslint "$FILE" 2>&1) || \
-        REPORT="${REPORT}[eslint 失敗] $FILE"$'\n'"$OUT"$'\n'
-    fi
+    # lint：編集した1ファイルだけを対象にする（全体を回すと編集のたびに遅くなる）。
+    # どの lint を呼ぶかは package.json の lint スクリプトに書かれた名前で決める。oxlint・eslint のどちらも無ければ呼ばない
+    # （以前は lint スクリプトがあれば eslint を決め打ちで呼び、oxlint のアプリで毎回「eslint 失敗」を出していた。2026-10-11 に直した）
+    LINT_SCRIPT=$(jq -r '.scripts.lint // empty' "$FRONTEND/package.json" 2>/dev/null)
+    for LINTER in oxlint eslint; do
+      # 前後が英数字・_・- でない所だけを名前とみなす（typescript-eslint などの一部を拾わないため）
+      if printf '%s' "$LINT_SCRIPT" | grep -qE "(^|[^[:alnum:]_-])${LINTER}([^[:alnum:]_-]|\$)"; then
+        OUT=$(cd "$FRONTEND" && npx --no-install "$LINTER" "$FILE" 2>&1) || \
+          REPORT="${REPORT}[${LINTER} 失敗] $FILE"$'\n'"$OUT"$'\n'
+      fi
+    done
     ;;
 
   "$BACKEND"/*.go)
