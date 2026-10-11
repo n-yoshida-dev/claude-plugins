@@ -1,6 +1,6 @@
 ---
 name: codex-review
-description: 設計書・計画・仕様の文書を Codex（用途 review の表のモデル。2026-10-06 から GPT-6.1 Sol）に読み取り専用で厳しくレビューさせ、指摘を別の系統（Fable）が文書と照らして確かめ、利用者が採否を決めて台帳 logs/codex-review/ に残す。使う場面：SPEC・PLAN など設計の文書を新しく書いた・大きく書き換えたとき。始め方：利用者が /apps-workflow:codex-review <文書のパス> と打ったら、そのまま始める。Claude の判断で使うときは、先に利用者へ 1 行で提案し（例「「レビュー」か「不要」とだけ返してください」）、OK をもらってから始める。ops・personal の中、ルートに data/ のあるリポジトリでは提案しない。コードの差分のレビューは GitHub の Codex クラウドレビュー（pr-flow 5 節）の担当で、ここでは扱わない。GitHub への投稿も自動の修正もしない。
+description: 設計書・計画・仕様の文書を Codex（モデルは表 config/codex-models.json の用途 review で決まる）に読み取り専用で厳しくレビューさせ、指摘を別の系統（Fable）が文書と照らして確かめ、利用者が採否を決めて台帳 logs/codex-review/ に残す。使う場面：SPEC・PLAN など設計の文書を新しく書いた・大きく書き換えたとき。始め方：利用者が /apps-workflow:codex-review <文書のパス> と打ったら、そのまま始める。Claude の判断で使うときは、先に利用者へ 1 行で提案し（例「「レビュー」か「不要」とだけ返してください」）、OK をもらってから始める。ops・personal の中、ルートに data/ のあるリポジトリでは提案しない。コードの差分のレビューは GitHub の Codex クラウドレビュー（pr-flow 5 節）の担当で、ここでは扱わない。GitHub への投稿も自動の修正もしない。
 argument-hint: <レビューする文書のパス>
 ---
 

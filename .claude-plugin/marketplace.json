@@ -9,7 +9,7 @@
     {
       "name": "apps-workflow",
       "source": "./plugins/apps-workflow",
-      "description": "HANDOFF / TODO / KNOWLEDGE の4ファイル体系と frontend/ backend/ 構成を前提にした開発ワークフロー（フック4種・/progress・/handoff・/pr-check・/pr-flow・/dashboard・/codex-review・/compete・/look・acceptance-reviewer と look-reviewer のエージェント・見た目の道具 look.mjs・Codex の共通ラッパー・外部から写したレビューと採点のプロンプト）",
+      "description": "開発ドキュメント（PLAN / SPEC / TODO / HANDOFF / KNOWLEDGE / logs/decisions.md / DESIGN.md）と frontend/ backend/ 構成を前提にした開発ワークフロー（フック4種・/progress・/handoff・/pr-check・/pr-flow・/dashboard・/codex-review・/compete・/look・acceptance-reviewer と look-reviewer のエージェント・見た目の道具 look.mjs・Codex の共通ラッパー・外部から写したレビューと採点のプロンプト）",
       "category": "productivity"
     }
   ]
