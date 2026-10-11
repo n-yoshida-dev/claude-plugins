@@ -3,8 +3,10 @@
 #
 # stdout に書いた内容がそのまま Claude の context に入る（ユーザーの画面には出ない）。
 # 未完一覧は先頭レベルの `- [ ]` だけを数える。進捗表（progress.sh）は字下げした子項目も数えるので、件数は一致しないことがある。
-# 一覧は、公開の節（見出しに「公開」を含む最初の節。「公開後」は除く）の未完を先に出し、ほかは上から出す。
-# 公開の節が TODO の末尾にあっても、Claude の目に入るようにするため（2026-10-11 の合意。ops の docs/2026-10-11-apps-リリースまで届く開発の進め方.md）。
+# 一覧は、公開の節（見出しに「公開」を含む最初の節。「公開後」は除く）の未完を見出しを分けて先に出し、ほかは上から出す。
+# 公開の節が TODO の末尾にあっても、Claude の目に入るようにするため（ops の docs/2026-10-11-apps-リリースまで届く開発の進め方.md の 5 節 2 と
+# 7 節 Step 4 の 1。どちらも Claude が書いた提案と手順で、2026-10-11 にユーザーが OK した「決定」の 4 つには入っていない）。
+# 見出しを分けるのは、着手の順（上から）と取り違えないようにするため（Claude の選択）。
 # CLAUDE.md に「TODO.md を読め」と書くより確実で、ファイル読み込み1回分を節約できる。
 # context を圧迫しないよう件数を絞る。
 #
@@ -27,36 +29,47 @@ echo "**この進捗表は、最初の返答の冒頭にコードブロックの
 echo "（フックの出力はユーザーの画面に出ないため。ユーザーは「どこまで進み、何が残っているか」をこの表で把握する）。"
 echo
 
-# 先頭レベルの未完を「行番号:行」の形で出す。公開の節の分を先に、ほかを上から。最後の行に公開の節の有無（release=1 か 0）を出す
-ORDERED=$(awk '
+# 先頭レベルの未完を「R:行番号:行」（公開の節）か「O:行番号:行」（ほか）の形で上から出し、最後の行に公開の節の見出し（無ければ空）を出す
+TAGGED=$(awk '
   /^## / {
     s = $0; sub(/^## +/, "", s)
-    in_release = (!found && s ~ /公開/ && s !~ /公開後/ && s !~ /確認待ち/ && s !~ /保留/)
-    if (in_release) found = 1
+    in_release = (name == "" && s ~ /公開/ && s !~ /公開後/ && s !~ /確認待ち/ && s !~ /保留/)
+    if (in_release) name = s
     next
   }
-  /^- \[ \]/ { if (in_release) first[++nf] = NR ":" $0; else rest[++nr] = NR ":" $0 }
-  END {
-    for (i = 1; i <= nf; i++) print first[i]
-    for (i = 1; i <= nr; i++) print rest[i]
-    print "release=" (found ? 1 : 0)
-  }
+  /^- \[ \]/ { print (in_release ? "R" : "O") ":" NR ":" $0 }
+  END { print "release=" name }
 ' "$TODO")
-HAS_RELEASE=$(printf '%s\n' "$ORDERED" | tail -n 1)
-PENDING=$(printf '%s\n' "$ORDERED" | sed '$d' | head -12)
-if [ -n "$PENDING" ]; then
-  TOTAL=$(grep -c '^- \[ \]' "$TODO")
-  if [ "$HAS_RELEASE" = "release=1" ]; then
-    echo "### 未完タスク（先頭レベルのみ）${TOTAL} 件。公開の節を先に、ほかは上から 12 件："
+RELEASE_NAME=$(printf '%s\n' "$TAGGED" | tail -n 1 | sed 's/^release=//')
+RELEASE_TASKS=$(printf '%s\n' "$TAGGED" | sed -n 's/^R://p' | head -12)
+OTHER_TASKS=$(printf '%s\n' "$TAGGED" | sed -n 's/^O://p')
+TOTAL=$(grep -c '^- \[ \]' "$TODO")
+LIMIT=12
+# 「行番号:- [ ] 本文」を「  - (TODO.md:行番号) 本文」にする
+format_tasks() { sed 's/^\([0-9]*\):- \[ \] /  - (TODO.md:\1) /'; }
+# 公開の節の未完を先に、見出しを分けて出す（着手の順ではなく、公開に何が残っているかを見せるため）
+if [ -n "$RELEASE_TASKS" ]; then
+  RELEASE_COUNT=$(printf '%s\n' "$RELEASE_TASKS" | grep -c .)
+  echo "### 公開の節（${RELEASE_NAME}）の未完 ${RELEASE_COUNT} 件："
+  echo
+  printf '%s\n' "$RELEASE_TASKS" | format_tasks
+  echo
+  LIMIT=$((12 - RELEASE_COUNT))
+fi
+if [ -n "$OTHER_TASKS" ] && [ "$LIMIT" -gt 0 ]; then
+  if [ -n "$RELEASE_TASKS" ]; then
+    echo "### ほかの未完タスク（先頭レベルのみ。未完は全部で ${TOTAL} 件）。上から ${LIMIT} 件まで："
   else
     echo "### 未完タスク（先頭レベルのみ）${TOTAL} 件。先頭12件："
   fi
   echo
-  printf '%s\n' "$PENDING" | sed 's/^\([0-9]*\):- \[ \] /  - (TODO.md:\1) /'
+  printf '%s\n' "$OTHER_TASKS" | head -n "$LIMIT" | format_tasks
   echo
 fi
-if [ "$HAS_RELEASE" != "release=1" ]; then
-  echo "TODO.md に「公開」を含む見出しが無い。このセッションの作業の PR で、見出しを「設計 → 最初の画面 → 公開 → 公開後の改善」の並びに直す（書き方は apps ルートの CLAUDE.md の TODO.md の項）。"
+# 公開の節が無いことは知らせるだけにする。並べ替えるかは apps ルートの CLAUDE.md の TODO.md の項に従う
+# （ユーザーが今は動かさないとしたアプリがあるため、フックからは指示しない）
+if [ -z "$RELEASE_NAME" ]; then
+  echo "TODO.md に「公開」を含む見出しが無いので、進捗表に「公開まで残り」は出ない（並べ方は apps ルートの CLAUDE.md の TODO.md の項）。"
   echo
 fi
 

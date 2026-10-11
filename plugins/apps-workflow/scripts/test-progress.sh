@@ -5,7 +5,7 @@
 # 見本の TODO.md を一時フォルダに作って 2 本を動かす。Git の履歴は作らないので「前回の区切りから」の行は出ない
 # 確かめること：「公開まで残り」が公開の節とその上の節の未完を数えるか（公開の節の後ろと「公開後」は数えない）、
 #               「公開後」「保留」「確認待ち」の節が合計から外れるか、公開の節が無ければ「公開まで残り」を出さないか、
-#               起動時の一覧が公開の節の未完を先に出すか、公開の節が無いときに並べ替えを促す 1 行を出すか
+#               起動時の一覧が公開の節の未完を見出しを分けて先に出すか、公開の節が無いときに知らせの 1 行を出すか（並べ替えは指示しない）
 # 出力：  1 件ごとに ok / NG。NG が 1 件でもあれば exit 1
 set -uo pipefail
 
@@ -81,8 +81,12 @@ check "確認待ちの別枠はこれまでどおり" has "$OUT" "あなたの�
 BRIEF=$(CLAUDE_PROJECT_DIR="$WORK/ordered" bash "$BRIEFING")
 FIRST=$(grep -m 1 '(TODO.md:' <<< "$BRIEF")
 check "起動時の一覧：公開の節の未完を先頭に出す" has "$FIRST" "Pages に出す"
-check "起動時の一覧：見出しで公開の節を先に出すと書く" has "$BRIEF" "公開の節を先に、ほかは上から 12 件"
-check "起動時の一覧：公開の節があれば並べ替えを促さない" lacks "$BRIEF" "「公開」を含む見出しが無い"
+check "起動時の一覧：公開の節の見出しを分けて出す" has "$BRIEF" "### 公開の節（フェーズ3：公開）の未完 1 件："
+check "起動時の一覧：ほかの未完は別の見出しで上から出す" has "$BRIEF" "### ほかの未完タスク（先頭レベルのみ。未完は全部で 7 件）。上から 11 件まで："
+check "起動時の一覧：公開の節のタスクを二度出さない" test "$(grep -c 'Pages に出す' <<< "$BRIEF")" -eq 1
+SECOND=$(grep '(TODO.md:' <<< "$BRIEF" | sed -n 2p)
+check "起動時の一覧：ほかの未完の先頭は TODO の上から" has "$SECOND" "SPEC.md を書く"
+check "起動時の一覧：公開の節があれば、無いという知らせを出さない" lacks "$BRIEF" "「公開」を含む見出しが無い"
 check "起動時の一覧：子項目は一覧に出さない" lacks "$BRIEF" "子項目も数える"
 
 # 公開の節が末尾にある古い並び。公開の節の未完は先に出し、「公開まで」は全部を数える
@@ -103,7 +107,7 @@ BRIEF=$(CLAUDE_PROJECT_DIR="$WORK/old" bash "$BRIEFING")
 FIRST=$(grep -m 1 '(TODO.md:' <<< "$BRIEF")
 check "古い並び：末尾の公開の節の未完を先頭に出す" has "$FIRST" "(TODO.md:8) 公開する"
 
-# 公開の節が無い TODO。公開まで残りは出さず、起動時に並べ替えを促す
+# 公開の節が無い TODO。公開まで残りは出さず、起動時に公開の節が無いことだけを知らせる
 mkdir -p "$WORK/none"
 cat > "$WORK/none/TODO.md" <<'EOF'
 ## フェーズ1：実装
@@ -115,7 +119,8 @@ OUT=$(bash "$PROGRESS" "$WORK/none")
 check "公開の節が無ければ公開まで残りを出さない" lacks "$OUT" "公開まで残り"
 check "公開の節が無くても表はこれまでどおり（未完 1 / 2）" has "$OUT" "残り  1 /  2  合計"
 BRIEF=$(CLAUDE_PROJECT_DIR="$WORK/none" bash "$BRIEFING")
-check "公開の節が無ければ並べ替えを促す" has "$BRIEF" "「公開」を含む見出しが無い"
+check "公開の節が無ければ、そのことを知らせる" has "$BRIEF" "「公開」を含む見出しが無いので"
+check "公開の節が無くても、並べ替えを指示しない" lacks "$BRIEF" "並びに直す"
 check "公開の節が無ければ一覧の見出しはこれまでどおり" has "$BRIEF" "1 件。先頭12件："
 
 # 公開後の節だけがあり、公開の節が無い。公開後は公開の節と見なさない
@@ -132,7 +137,23 @@ EOF
 OUT=$(bash "$PROGRESS" "$WORK/after-only")
 check "公開後の節は公開の節と見なさない" lacks "$OUT" "公開まで残り"
 BRIEF=$(CLAUDE_PROJECT_DIR="$WORK/after-only" bash "$BRIEFING")
-check "公開後の節だけなら並べ替えを促す" has "$BRIEF" "「公開」を含む見出しが無い"
+check "公開後の節だけなら、公開の節が無いと知らせる" has "$BRIEF" "「公開」を含む見出しが無いので"
+
+# 公開の節の未完が 0 件（公開済み）。一覧はこれまでどおりの見出しで上から出す
+mkdir -p "$WORK/released"
+cat > "$WORK/released/TODO.md" <<'EOF'
+## フェーズ1：公開
+
+- [x] 公開する
+
+## 公開後の改善
+
+- [ ] 色を直す
+EOF
+BRIEF=$(CLAUDE_PROJECT_DIR="$WORK/released" bash "$BRIEFING")
+check "公開の節に未完が無ければ一覧の見出しはこれまでどおり" has "$BRIEF" "1 件。先頭12件："
+check "公開の節に未完が無ければ公開の節の見出しを出さない" lacks "$BRIEF" "### 公開の節"
+check "公開の節があれば（未完 0 件でも）、無いという知らせを出さない" lacks "$BRIEF" "「公開」を含む見出しが無い"
 
 # TODO.md が無いフォルダでは、どちらも何も出さない
 mkdir -p "$WORK/empty"
