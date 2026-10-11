@@ -8,10 +8,36 @@
 # テスト・ビルドの成果物・依存・開発ダッシュボード（dashboard/。見た目は apps-workflow:dashboard の方針に従う）は外す。
 # 知らせるのは同じセッションで 1 回だけ（編集のたびに同じ文が流れ込むと context を圧迫するため）。
 # 印は ${TMPDIR:-/tmp}/apps-workflow-look-notice/<session_id> に置く。
+# 同じリポジトリの別の作業フォルダ（git worktree）での編集も対象にする。DESIGN.md はその作業フォルダのものを見る
+# （別のセッションと重ならないよう worktree で画面を直したとき、知らせが出ていなかった。2026-10-11）。
 #
 # 入力：標準入力に PostToolUse イベントの JSON（.tool_input.file_path・.session_id）
 # 出力：知らせるときだけ JSON を stdout に出す。いつも exit 0（ブロックしない）
 set -uo pipefail
+
+# 編集したファイルが、同じリポジトリの別の作業フォルダ（git worktree）か、プロジェクトの中にあれば、
+# ROOT（その作業フォルダかプロジェクトの一番上）・REL（そこからの相対パス）を決めて成功を返す。
+# どちらでもなければ失敗を返す。check-edited.sh にも同じ関数がある（あちらは別の作業フォルダかの印 WORKTREE も決める。直すときは両方）
+locate_in_repo() {
+  local file="$1" project="$2" dir mine theirs top ptop prefix
+  dir=$(dirname "$file")
+  if [ -d "$dir" ] \
+    && mine=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) \
+    && theirs=$(git -C "$project" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) \
+    && [ "$mine" = "$theirs" ] \
+    && top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) \
+    && ptop=$(git -C "$project" rev-parse --show-toplevel 2>/dev/null) \
+    && [ "$top" != "$ptop" ] \
+    && prefix=$(git -C "$dir" rev-parse --show-prefix 2>/dev/null); then
+    ROOT="$top"
+    REL="${prefix}$(basename "$file")"
+    return 0
+  fi
+  case "$file" in
+    "$project"/*) ROOT="$project"; REL=${file#"$project"/}; return 0 ;;
+  esac
+  return 1
+}
 
 INPUT=$(cat)
 FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
@@ -19,10 +45,7 @@ SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 [ -n "$FILE" ] || exit 0
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-case "$FILE" in
-  "$PROJECT_DIR"/*) REL=${FILE#"$PROJECT_DIR"/} ;;
-  *) exit 0 ;;
-esac
+locate_in_repo "$FILE" "$PROJECT_DIR" || exit 0
 
 # 画面のファイルでなければ何もしない
 case "$REL" in
@@ -42,7 +65,7 @@ if [ -n "$SESSION" ]; then
   fi
 fi
 
-if [ -f "$PROJECT_DIR/DESIGN.md" ]; then
+if [ -f "$ROOT/DESIGN.md" ]; then
   MSG="画面のファイル（$REL）を変えました。このアプリの見た目の決まりは DESIGN.md にあります。このセッションでまだ読んでいなければ先に読み、今の変更が決まりとずれていないかを見直してください。新しい画面か大きな作り替えなら frontend-design のスキルも呼びます。PR を作る前に、apps-workflow:look のスキルの「B 毎回の点検」（撮影・look-reviewer・Impeccable の検出器）を回します（この知らせはこのセッションで 1 回だけ出ます）"
 else
   MSG="画面のファイル（$REL）を変えました。このアプリには見た目の決まり（DESIGN.md）がまだありません。見た目を変える作業なら、apps-workflow:look のスキルを呼び、先に DESIGN.md を作ります（今ある CSS・SPEC・logs/decisions.md の決まりを写し、決まっていないところは空けて、新しい決定はしない）。ユーザーが見た目の作り替えを保留しているアプリや、文言・不具合だけの小さな直しなら作らずに進めます（この知らせはこのセッションで 1 回だけ出ます）"

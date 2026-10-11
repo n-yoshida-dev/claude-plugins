@@ -97,6 +97,26 @@ check "file_path が無ければ何もしない" silent "$APP" "" s16
 check "session_id が無ければ毎回知らせる（1 回目）" notified "$APP" "$APP/frontend/src/a.css" ""
 check "session_id が無ければ毎回知らせる（2 回目）" notified "$APP" "$APP/frontend/src/a.css" ""
 
+# 同じリポジトリの別の作業フォルダ（git worktree）。リポジトリの本体には DESIGN.md が無く、作業フォルダのブランチにだけある
+G=(git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main)
+REPO="$WORK/repo"
+OTHER="$WORK/other-repo"
+mkdir -p "$REPO/frontend/src" "$OTHER/frontend/src"
+: > "$REPO/frontend/src/App.tsx"
+: > "$OTHER/frontend/src/App.tsx"
+"${G[@]}" -C "$REPO" init -q && "${G[@]}" -C "$REPO" add -A && "${G[@]}" -C "$REPO" commit -q -m init
+"${G[@]}" -C "$OTHER" init -q && "${G[@]}" -C "$OTHER" add -A && "${G[@]}" -C "$OTHER" commit -q -m init
+"${G[@]}" -C "$REPO" worktree add -q "$WORK/repo-wt" -b design
+: > "$WORK/repo-wt/DESIGN.md"
+"${G[@]}" -C "$REPO" worktree add -q "$REPO/.claude/worktrees/w" -b nested
+check "別の作業フォルダ（worktree）で画面を変えても知らせる" notified "$REPO" "$WORK/repo-wt/frontend/src/App.tsx" s20
+check "別の作業フォルダでは、その作業フォルダの DESIGN.md を見る" notice_has "DESIGN.md にあります" "$REPO" "$WORK/repo-wt/frontend/src/App.tsx" s21
+check "知らせのパスは作業フォルダからの相対パス" notice_has "（frontend/src/App.tsx）" "$REPO" "$WORK/repo-wt/frontend/src/App.tsx" s22
+check "プロジェクトの中の作業フォルダ（.claude/worktrees）でも知らせる" notified "$REPO" "$REPO/.claude/worktrees/w/frontend/src/App.tsx" s23
+check "本体（git の中）の画面のファイルは今までどおり知らせる" notice_has "DESIGN.md）がまだありません" "$REPO" "$REPO/frontend/src/App.tsx" s24
+check "別のリポジトリは知らせない" silent "$REPO" "$OTHER/frontend/src/App.tsx" s25
+check "別の作業フォルダでもテストは知らせない" silent "$REPO" "$WORK/repo-wt/frontend/src/App.test.tsx" s26
+
 # --- 表 ---
 CONFIG="$PLUGIN/config/look-tools.json"
 check "表の道具に版がある" jq_true '.playwright.version and .impeccable.version and .designMd.version and .impeccable.license and .designMd.license' "$CONFIG"
