@@ -32,7 +32,7 @@ for cmd in npm npx; do
 #!/usr/bin/env bash
 echo "$(basename "$0") $*" >> "$FAKE_LOG"
 for word in ${FAKE_FAIL:-}; do
-  case " $* " in *" $word "*) echo "偽の $word のエラー"; exit 1 ;; esac
+  case " $* " in *" $word "*) printf '\033[91m偽の %s のエラー\033[0m\n' "$word"; exit 1 ;; esac
 done
 exit 0
 EOF
@@ -109,6 +109,7 @@ check "typecheck スクリプトが無ければ tsc を直接呼ぶ" called "npx
 run_hook "$OX" "$OX/frontend/src/App.tsx" "oxlint" > "$WORK/out"
 check "oxlint が失敗したら知らせる" out_has "[oxlint 失敗]"
 check "知らせに lint の出力を入れる" out_has "偽の oxlint のエラー"
+check "frontend/ のアプリでも知らせから色付けの制御文字を外す" bash -c "! jq -r '.hookSpecificOutput.additionalContext' '$WORK/out' | grep -q \$'\\x1b'"
 
 run_hook "$OX" "$OX/frontend/src/App.tsx" "typecheck" > "$WORK/out"
 check "typecheck が失敗したら知らせる" out_has "[typecheck 失敗]"
@@ -123,6 +124,34 @@ BARE="$WORK/bare"
 mkdir -p "$BARE/frontend/src"
 run_hook "$BARE" "$BARE/frontend/src/a.ts" > "$WORK/out"
 check "package.json が無ければ何も呼ばない" bash -c "[ ! -s '$WORK/log' ]"
+jq -n '{scripts: {typecheck: "tsc", lint: "oxlint"}}' > "$BARE/package.json"
+run_hook "$BARE" "$BARE/src/a.ts" > "$WORK/out"
+check "frontend/ があれば、直下に package.json（typecheck・lint 付き）があっても直下は見ない" bash -c "[ ! -s '$WORK/log' ]"
+
+# サイトがリポジトリ直下にあるアプリ（portfolio の形：frontend/ が無く、直下に package.json）
+make_root_site() {
+  local dir="$WORK/site-$RANDOM"
+  mkdir -p "$dir/src/pages"
+  jq -n --argjson s "$1" '{scripts: $s}' > "$dir/package.json"
+  echo "$dir"
+}
+SITE=$(make_root_site '{"typecheck":"astro check","lint":"node scripts/check-public-profile.mjs"}')
+run_hook "$SITE" "$SITE/src/pages/index.astro" > "$WORK/out"
+check "直下のサイトで .astro を変えたら typecheck を呼ぶ" called "npm run --silent typecheck"
+check "直下のサイトで lint が oxlint・eslint でなければ lint を呼ばない" bash -c "! grep -q 'oxlint\|eslint' '$WORK/log'"
+check "直下のサイトで通れば知らせない" out_empty
+run_hook "$SITE" "$SITE/src/lib/a.ts" "typecheck" > "$WORK/out"
+check "直下のサイトで .ts の typecheck が失敗したら知らせる" out_has "[typecheck 失敗]"
+check "知らせから色付けの制御文字を外す" bash -c "! jq -r '.hookSpecificOutput.additionalContext' '$WORK/out' | grep -q \$'\\x1b'"
+run_hook "$SITE" "$SITE/.astro/types.d.ts" > "$WORK/out"
+check "直下のサイトでも Astro が作る型（.astro/）は見ない" bash -c "[ ! -s '$WORK/log' ]"
+run_hook "$SITE" "$SITE/node_modules/x/index.d.ts" > "$WORK/out"
+check "直下のサイトでも依存（node_modules）は見ない" bash -c "[ ! -s '$WORK/log' ]"
+run_hook "$SITE" "$SITE/dist/_astro/a.ts" > "$WORK/out"
+check "直下のサイトでもビルドの成果物（dist）は見ない" bash -c "[ ! -s '$WORK/log' ]"
+TOOLS=$(make_root_site '{"format":"prettier --write ."}')
+run_hook "$TOOLS" "$TOOLS/src/a.ts" > "$WORK/out"
+check "直下の package.json に typecheck が無ければ tsc を呼ばない" bash -c "[ ! -s '$WORK/log' ]"
 
 echo
 if [ "$failures" -gt 0 ]; then
