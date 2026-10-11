@@ -368,7 +368,9 @@ async function buildPage(config, argv) {
     }
     const ask = spec.ask ? `<p class="ask">${esc(spec.ask)}</p>` : ''
     const notes = (spec.notes ?? []).length ? `<ul class="notes">${spec.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''
-    const html = `<title>${esc(spec.title)}</title>
+    // viewport の meta は、Artifact に載せると骨組みが同じ中身で足す。手元で HTML を直接開いたときのために、同じ中身をここにも書く（どちらが効いても同じになる）
+    const html = `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>${esc(spec.title)}</title>
 <style>
 /* 見本の画像を縦に並べて読む比較ページ。地は中立の灰に寄せ、見本の色を邪魔しない */
 :root {

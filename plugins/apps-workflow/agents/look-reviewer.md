@@ -53,8 +53,10 @@ DESIGN.md の中で書きぶりが食い違っている所も含める。DESIGN.
 **B. AI がよく作る形**
 
 画像と CSS・TSX に、次が残っていないか。DESIGN.md の「避ける形」に挙がっているものは、ここでも必ず見る。
-一覧の出どころ：photo-prompt-builder の試行で点検役に渡した例（1〜5 行目の大半）に、Anthropic の frontend-design のスキル（https://github.com/anthropics/skills/tree/main/skills/frontend-design ）の「AI がよく作る形」と、
-試行で見つかったこと（inset の色帯）を Claude が足したもの。足した部分は試行では試していない。
+一覧の出どころ：photo-prompt-builder の試行で点検役に渡した例（1〜5 行目の大半）に、次を Claude が足したもの。足した部分は試行では試していない。
+Anthropic の frontend-design のスキル（https://github.com/anthropics/skills/tree/main/skills/frontend-design ）の「AI がよく作る形」、
+Claude Code の Artifact の作り方の手引き（artifact-design のスキル）の「AI がよく作る見た目」（紫から青のグラデーション・絵文字の印・中央ぞろえ・罫線の密な組みなど）、
+ユーザーの言葉（「光るカード」。portfolio の `logs/decisions.md` の「グラデーション・光るカード・3D・ロゴの羅列」）、試行で見つかったこと（inset の色帯）。
 
 - 同じ角丸・同じ枠線や影の箱を、すべての部品に使う（カードの繰り返し）
 - 選択中や強調の印に「左の色帯」（`border-left` だけでなく `box-shadow: inset` で描いたものも。検出器はこの形を拾わなかった）
@@ -64,7 +66,7 @@ DESIGN.md の中で書きぶりが食い違っている所も含める。DESIGN.
 - クリーム色・ベージュの地に、セリフの見出しと赤茶の差し色／ほぼ黒の地に蛍光色 1 つ／紫から青のグラデーション／細い罫線で区切った新聞のような密な組みと角なし
 - 絵文字を見出しの印に使う、すべてを中央にそろえる
 
-ただし、**DESIGN.md がユーザーの選んだ方向として採っている形は指摘しない**（例：photo-prompt-builder は「罫線と余白・角なし」をユーザーが選んだ。`logs/decisions.md` に選んだ記録がある）。
+ただし、**DESIGN.md がユーザーの選んだ方向として採っている形は指摘しない**（例：photo-prompt-builder でユーザーが選んだ見本 A は、罫線と余白で区切り、角を付けない形。形の言い方は Claude の言葉で、ユーザーの言葉は `logs/decisions.md` 2026-10-11 にある）。
 DESIGN.md の「避ける形」で対象外と書いているもの（例：photo-prompt-builder の、日本語で物を並べる「・」と、数字の幅だけをそろえる `tabular-nums`）も指摘しない。
 対象外かどうか DESIGN.md から分からないものは「好みの問題」に入れる。
 
