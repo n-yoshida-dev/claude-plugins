@@ -74,7 +74,8 @@ CLI=$(ls -d ~/.vscode-server/extensions/anthropic.claude-code-*/resources/native
 | `usage.html` | 使用回数（本人の環境でだけ中身が出る） |
 
 図の中身は手で書かない。`site/build/generate.mjs` が部品のファイル（hooks.json・SKILL.md・agents・scripts の先頭コメント・config・prompts/sources.json・git の履歴）から `site/data.js` を作り、
-main にマージすると GitHub Actions（`pages.yml`）が作り直して GitHub Pages に出す。手で書くのは作業の流れの手順 `site/build/flow.json` だけで、指した部品が無ければ生成が止まる。
+main にマージすると GitHub Actions（`pages.yml`）が作り直して GitHub Pages に出す。部品に関わる中身（名前・出来事・誰が始めるか・つながり）は手で書かない。
+手で書くのは、作業の流れの手順 `site/build/flow.json`（指した部品が無ければ生成が止まる）と、置き場所の図の段の名前と効く範囲（Claude Code の仕様で、部品のファイルからは導けない）だけ。
 
 ```bash
 node site/build/generate.mjs           # 手元で見る（site/data.js を作る。コミットしない）

@@ -14,7 +14,10 @@
 //   plugins/*/agents/*.md                            frontmatter（name / description / tools / model）
 //   plugins/*/config/*, plugins/*/prompts/sources.json  設定の表と外部から写したプロンプト
 //   git log（plugin.json を変えたコミット）           版ごとに増えた・直した・外した部品
-//   site/build/flow.json                             1 回の作業の流れ（手で書く唯一の材料。参照する部品が無ければここで止める）
+//   site/build/flow.json                             1 回の作業の流れ（部品に関わる材料で唯一の手書き。参照する部品が無ければここで止める）
+//
+// 手で書いてよいのは、Claude Code の仕様で部品のファイルから導けない物だけ：置き場所の図（where）の段の名前と効く範囲。
+// 部品の名前・出来事・誰が始めるかは、必ず data から導く（app.js に直書きしない）
 //
 // 「誰が始めるか」は frontmatter の文から決める（手で分類しない）：
 //   フック → 自動 / disable-model-invocation: true → 本人が打つ / 説明に「OK をもらう」→ Claude が提案して OK 後 /
@@ -214,12 +217,22 @@ function collectPlugin(dir) {
   if (fs.existsSync(sources)) {
     const j = readJson(sources)
     const list = Array.isArray(j) ? j : (j.sources ?? j.files ?? [])
+    // 役割は prompts/README.md の表（| ファイル | 出どころ | ライセンス | 役割 |）の 4 列目から拾う
+    const readme = path.join(dir, 'prompts', 'README.md')
+    const roles = {}
+    if (fs.existsSync(readme)) {
+      for (const line of fs.readFileSync(readme, 'utf8').split('\n')) {
+        const cells = line.split('|').map((c) => c.trim())
+        const m = cells[1]?.match(/^`([^`]+)`$/)
+        if (m && cells[4]) roles[m[1]] = cells[4].replace(/\*\*/g, '')
+      }
+    }
     for (const s of list) {
       parts.push({
         id: `prompt:${s.path ?? s.file ?? s.name}`,
         kind: 'prompt',
         name: s.path ?? s.file ?? s.name,
-        role: s.usedBy ?? s.purpose ?? '',
+        role: roles[s.path ?? s.file ?? s.name] ?? s.usedBy ?? '',
         origin: s.repo ? `${s.repo}/${s.upstreamPath ?? ''}` : (s.url ?? ''),
         license: s.license ?? '',
         modified: s.modified ?? false,
@@ -339,7 +352,7 @@ function localInstalls(pluginNames) {
 /** 1 回の作業の流れ（site/build/flow.json）。参照する部品が無ければ止める（部品を消したら流れも直す） */
 function flow(allParts) {
   const f = path.join(HERE, 'flow.json')
-  if (!fs.existsSync(f)) return null
+  if (!fs.existsSync(f)) throw new Error('site/build/flow.json が無い（作業の流れの図の材料。消すなら flow.html と generate.mjs の flow() も外す）')
   const j = readJson(f)
   const ids = new Set(allParts.map((p) => p.id))
   for (const step of j.steps) {
