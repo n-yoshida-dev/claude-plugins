@@ -434,13 +434,18 @@ function listSessions() {
   return [...out.values()].filter((s) => s.files.length)
 }
 
+/** p が root そのものか、その中にあるか */
+function inside(root, p) {
+  const rel = path.relative(root, p)
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
+}
+
 /** セッションの作業フォルダ（cwd）から、どのアプリのセッションかを決める。別の作業フォルダ（git worktree）は元のアプリにまとめる */
 function projectOf(cwd, dirName, appDirs) {
   const fromDir = () => dirName.slice(encodeProjectDir(APPS_ROOT).length).replace(/^-/, '') || ROOT_LABEL
-  if (!cwd) return fromDir()
+  if (!cwd || !inside(APPS_ROOT, cwd)) return fromDir()
   const rel = path.relative(APPS_ROOT, cwd)
   if (!rel) return ROOT_LABEL
-  if (rel.startsWith('..') || path.isAbsolute(rel)) return fromDir()
   const seg = rel.split(path.sep)[0]
   const gitFile = path.join(APPS_ROOT, seg, '.git')
   try {
@@ -617,6 +622,8 @@ for (const s of found) {
   }
   const r = await scanSession(s.files, { plugins, cuts })
   if (!r.first) continue // 数える物が 1 つも無い記録（開いてすぐ閉じたなど）
+  // フォルダ名は英数字以外を - にしたものなので、apps-backup のような名前の頭が同じ隣のフォルダも当たる。作業フォルダで apps の中かを確かめる
+  if (r.cwd && !inside(APPS_ROOT, r.cwd)) continue
   store.sessions[s.id] = { project: projectOf(r.cwd, s.dirName, appDirs), sig, first: r.first, last: r.last, listed: r.listed, days: r.days }
   scanned++
 }

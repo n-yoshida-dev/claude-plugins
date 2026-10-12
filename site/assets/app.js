@@ -530,20 +530,25 @@ function pageUsage(root) {
   })
   root.append(figure(s, '部品ごとの回数（集計期間の合計）。フックは Claude に何か渡した回、スクリプトは Claude が直接動かした回', 'usage-parts'))
 
-  // 2. 週ごとの回数。一覧に載る前の週は「まだ無かった」として灰色の点にする
+  // 2. 週ごとの回数。一覧に載る前の週は「まだ無かった」として灰色の点にする。
+  // 積んだ週が増えても列が潰れないよう、列の幅に下限を置き、入りきらない古い週は出さない（上の合計には入っている）
   const used = rows.filter((r) => r.n > 0)
   if (u.weeks?.length && used.length) {
     root.append(el('h2', { text: '週ごとの回数' }))
-    const CW = Math.min(64, Math.floor(700 / u.weeks.length)), CH = 20
+    const MIN_CW = 32
+    const skip = Math.max(0, u.weeks.length - Math.floor(700 / MIN_CW))
+    const weeks = u.weeks.slice(skip)
+    const weekly = (id) => (u.weekly?.[id] ?? []).slice(skip)
+    const CW = Math.min(64, Math.floor(700 / weeks.length)), CH = 20
     const g = svg('svg', { viewBox: `0 0 960 ${30 + used.length * (CH + 2)}` })
-    u.weeks.forEach((w, j) => g.append(svg('text', { x: X0 + j * CW + CW / 2, y: 16, 'text-anchor': 'middle', class: 'label small', text: w.slice(5).replace('-', '/') })))
-    const vmax = Math.max(1, ...used.flatMap((r) => u.weekly?.[r.p.id] ?? []))
+    weeks.forEach((w, j) => g.append(svg('text', { x: X0 + j * CW + CW / 2, y: 16, 'text-anchor': 'middle', class: 'label small', text: w.slice(5).replace('-', '/') })))
+    const vmax = Math.max(1, ...used.flatMap((r) => weekly(r.p.id)))
     used.forEach((r, i) => {
       const y = 24 + i * (CH + 2)
       g.append(svg('text', { x: X0 - 10, y: y + 14, 'text-anchor': 'end', class: 'label', text: r.p.name }))
       const since = u.firstListed?.[r.p.id]
-      u.weeks.forEach((w, j) => {
-        const n = u.weekly?.[r.p.id]?.[j] ?? 0
+      weeks.forEach((w, j) => {
+        const n = weekly(r.p.id)[j] ?? 0
         const x = X0 + j * CW
         const e = new Date(`${w}T00:00:00`)
         e.setDate(e.getDate() + 6)
@@ -563,7 +568,8 @@ function pageUsage(root) {
         g.append(cell)
       })
     })
-    root.append(figure(g, '週ごとの回数（月曜始まり）。枠だけは 0 回、点はスキルの一覧に載る前の週', 'usage-weekly'))
+    const range = skip ? `直近 ${weeks.length} 週。それより前は上の合計にだけ入る。` : ''
+    root.append(figure(g, `週ごとの回数（月曜始まり）。${range}枠だけは 0 回、点はスキルの一覧に載る前の週`, 'usage-weekly'))
   }
 
   // 3. 場面があったのに使ったか（11 節）

@@ -25,11 +25,10 @@ function check(name, actual, expected) {
   console.log(`${ok ? 'OK ' : 'NG '} ${name}${ok ? '' : `（期待 ${JSON.stringify(expected)}、実際 ${JSON.stringify(actual)}）`}`)
 }
 
-/** 偽のセッション記録を 1 本書く */
-function session(app, id, lines, subagent = null) {
+/** 偽のセッション記録を 1 本書く。cwd を渡すと、apps の外の作業フォルダのセッションにできる */
+function session(app, id, lines, subagent = null, cwd = path.join(APPS, app)) {
   const dir = path.join(PROJECTS, `${enc(APPS)}-${app}`)
   fs.mkdirSync(dir, { recursive: true })
-  const cwd = path.join(APPS, app)
   let n = 0
   const rec = (r) => JSON.stringify({ uuid: `${id}-${n++}`, cwd, sessionId: id, timestamp: '2026-10-12T03:00:00.000Z', ...r })
   fs.writeFileSync(path.join(dir, `${id}.jsonl`), lines.map(rec).join('\n') + '\n')
@@ -76,9 +75,14 @@ try {
     { type: 'user', origin: { kind: 'human' }, message: { content: 'テスト' } },
     tool('Skill', { skill: 'apps-workflow:pr-flow' }),
   ])
+  // 隣の apps-backup/x のセッション。記録のフォルダ名は apps のものと頭が同じになるが、数えない
+  session('backup-x', 's3', [
+    { type: 'user', origin: { kind: 'human' }, message: { content: '別の場所' } },
+    tool('Skill', { skill: 'apps-workflow:pr-flow' }),
+  ], null, path.join(TMP, 'apps-backup', 'x'))
 
   let { log, u } = run()
-  check('セッション数', u.sessions, 2)
+  check('セッション数（隣の apps-backup は数えない）', u.sessions, 2)
   check('pr-flow は全体 2・実アプリ 1', [u.counts['skill:pr-flow'], u.countsApps['skill:pr-flow']], [2, 1])
   check('本人が打った handoff', [u.counts['skill:handoff'], u.human['skill:handoff']], [1, 1])
   check('受け入れ役', u.counts['agent:acceptance-reviewer'], 1)
