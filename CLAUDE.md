@@ -1,7 +1,7 @@
 # claude-plugins
 
 自作アプリ共通の Claude Code プラグインを置くリポジトリ。アプリではないので、
-`../CLAUDE.md` の frontend/backend 構成・4ファイル体系（PLAN/SPEC/TODO/KNOWLEDGE）は適用しない。
+`../CLAUDE.md` の frontend/backend 構成・開発ドキュメント（PLAN / SPEC / TODO / HANDOFF / KNOWLEDGE / logs/decisions.md / DESIGN.md）は適用しない。
 
 ## 構成
 
@@ -10,6 +10,10 @@
 
 ## 守ること
 
+- **スキルを新しく作るとき、スキルやエージェントの説明文（description）を直すときは、`skill-creator` スキルを呼ぶ。**
+  Claude が自分でスキルを使うかどうかは、説明文と「使う場面」の書き方で決まるため
+  （2026-10-11 の棚卸しで、使う場面がどこにも書かれていない部品は、場面が来ても使われていなかった。それまでスキル 6 本を書いて skill-creator は 0 回。
+  本人の OK は ops の `docs/2026-10-11-apps-開発環境の棚卸し.md` の 5 つ目の質問）
 - **フックの検査ロジックはシェルスクリプトに置き、`hooks.json` は登録だけにする。** スクリプト単体で
   `echo '<json>' | bash hooks/xxx.sh` と叩いて検証できる状態を保つ
 - **フックはプロジェクトに無いものを黙ってスキップする。** `frontend/` `backend/` `TODO.md` が無いリポジトリで
