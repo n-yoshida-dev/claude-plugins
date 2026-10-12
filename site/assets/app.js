@@ -201,14 +201,15 @@ function pageIndex(root) {
   const n = (k) => parts.filter((p) => p.kind === k)
   const hooks = n('hook'), skills = n('skill'), agents = n('agent')
   // 出来事の名前はフックの登録（event と matcher）から、「打つ」の例は本人だけが呼べるスキルから組む
-  const EVENT = { SessionStart: 'セッション開始', PreToolUse: '', PostToolUse: '' }
-  const events = [...new Set(hooks.map((h) => EVENT[h.event] || h.matcher.join('・')))].filter(Boolean)
+  // 道具に紐づく出来事は matcher（Edit・Write など）で、それ以外は日本語名、表に無い出来事は英語名のまま出す（黙って落とさない）
+  const EVENT = { SessionStart: 'セッション開始', Stop: '応答の終わり', UserPromptSubmit: '本人の入力' }
+  const events = [...new Set(hooks.map((h) => (h.matcher.length ? h.matcher.join('・') : (EVENT[h.event] ?? h.event))))]
   const humanOnly = skills.filter((p) => p.starter === 'human').map((p) => p.name)
 
   // 上の段：誰が、何をきっかけに
   s.append(box(40, 24, 160, 56, ['本人', 'スラッシュコマンドを打つ'], { strong: true, bar: 'var(--c-human)' }))
   s.append(box(400, 24, 160, 56, ['Claude', '手順書を読んで呼ぶ'], { strong: true, bar: 'var(--c-claude)' }))
-  s.append(box(740, 24, 180, 56, ['出来事', events.join('・')], { strong: true, bar: 'var(--c-auto)' }))
+  s.append(box(700, 24, 220, 56, ['出来事', events.join('・')], { strong: true, bar: 'var(--c-auto)' }))
 
   // 中の段：スキル・エージェント・フック
   const skillBox = { x: 300, y: 170, w: 360, h: 120 }
@@ -247,7 +248,7 @@ function pageIndex(root) {
   const L = (d, label, lx, ly, flow = true) => s.append(edge(d, label, { lx, ly, flow }))
   L('M120,80 L120,120 L300,120 L330,170', humanOnly.length ? `打つ（${humanOnly.join('・')} など）` : '打つ', 200, 112)
   L('M480,80 L480,170', '呼ぶ', 505, 130)
-  L('M830,80 L830,170', 'きっかけ', 870, 130)
+  L('M810,80 L810,170', 'きっかけ', 850, 130)
   L('M300,230 L240,230', '検品を頼む', 270, 222)
   L('M400,290 L150,410', '使う', 260, 345)
   L('M480,290 L380,410', '使う', 450, 345)
