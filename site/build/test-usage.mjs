@@ -68,13 +68,17 @@ try {
     tool('Bash', { command: 'L=~/.claude/plugins/cache/n-yoshida-dev/apps-workflow/1.13.2/scripts/look.mjs; node "$L" shoot && node "$L" detect' }),
     tool('Bash', { command: 'bash -n plugins/apps-workflow/scripts/codex-run.sh; ps aux | grep "codex exec"' }),
     tool('Agent', { subagent_type: 'apps-workflow:acceptance-reviewer' }),
+    tool('Bash', { command: 'cd frontend && npm run typecheck' }),
+    { ...tool('AskUserQuestion', {}), timestamp: '2026-10-01T03:00:00.000Z' },
     { type: 'user', message: { content: [{ type: 'tool_result', is_error: true, content: 'PreToolUse:Bash hook error: 危険なコマンドを検知しました: [rm -rf]' }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', is_error: true, content: 'Permission to use Bash with command cd x\nrm y has been denied.' }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', is_error: true, content: '機密ファイルが含まれています: .env。git restore --staged で除外してください' }] } },
     { type: 'user', message: { content: [{ type: 'tool_result', is_error: false, content: '危険なコマンドを検知しました（ただの出力）' }] } },
   ], [tool('Bash', { command: 'bash ~/workspace/apps/claude-plugins/plugins/apps-workflow/scripts/codex-run.sh -m x "prompt"' })])
   const gone = session('claude-plugins', 's2', [
     { type: 'user', origin: { kind: 'human' }, message: { content: 'テスト' } },
     tool('Skill', { skill: 'apps-workflow:pr-flow' }),
-  ])
+  ], [tool('Skill', { skill: 'apps-workflow:progress' })])
   // 隣の apps-backup/x のセッション。記録のフォルダ名は apps のものと頭が同じになるが、数えない
   session('backup-x', 's3', [
     { type: 'user', origin: { kind: 'human' }, message: { content: '別の場所' } },
@@ -92,6 +96,10 @@ try {
   const row = (sec, label) => u.sections.find((s) => s.id === sec).rows.find((r) => r.label.startsWith(label))?.n
   check('本人の入力（スラッシュコマンドを含む）', row('volume', '本人の入力'), 3)
   check('git add -A は 1 コマンドで 1 回', row('rules', 'git add -A'), 1)
+  const rowOf = (sec, label) => u.sections.find((s) => s.id === sec).rows.find((r) => r.label.startsWith(label))
+  check('since の行は、その日からの回数も出す', [rowOf('rules', 'git add -A').nSince, rowOf('rules', '選択肢の画面').n, rowOf('rules', '選択肢の画面').nSince], [1, 1, 0])
+  check('改行の入ったコマンドを断った回も数える', row('guards', '許可が下りなかった'), 1)
+  check('staged-secrets-guard が止めた回', row('guards', 'staged-secrets-guard'), 1)
   check('Codex の直接呼びは grep を数えない', row('rules', 'Codex を入口（codex-run.sh）を通さず'), 0)
   check('Codex の入口は部品の回数をそのまま出す', row('rules', 'Codex を入口（codex-run.sh）から'), 1)
   check('止めたのは失敗した結果だけ', row('guards', 'dangerous-bash-guard'), 1)
@@ -100,10 +108,15 @@ try {
   check('look：使えた 1・場面 1・使った 0（テストのファイルは場面に入れない）', [scene('look').available, scene('look').scene, scene('look').usedInScene], [1, 1, 0])
   check('pr-flow：使えた 1・場面 1・場面で使った 1・使った 2', [scene('pr-flow').available, scene('pr-flow').scene, scene('pr-flow').usedInScene, scene('pr-flow').used], [1, 1, 1, 2])
 
-  // 記録が消えても、積んだ値は残る
+  check('PR の前の検査：場面 1・使った 1', [scene('pr-check').scene, scene('pr-check').usedInScene], [1, 1])
+
+  // 記録が消えても、積んだ値は残る（本体だけ消えた場合と、全部消えた場合）
   fs.rmSync(gone)
   ;({ log, u } = run())
-  check('記録が消えたセッションは積んだ値を残す', [u.sessions, u.counts['skill:pr-flow'], /積んだ値だけ 1/.test(log)], [2, 2, true])
+  check('本体の記録だけ消えても積んだ値を残す', [u.sessions, u.counts['skill:pr-flow'], u.counts['skill:progress'], /積んだ値だけ 1/.test(log)], [2, 2, 1, true])
+  fs.rmSync(path.join(path.dirname(gone), 's2'), { recursive: true })
+  ;({ log, u } = run())
+  check('記録が全部消えても積んだ値を残す', [u.sessions, u.counts['skill:pr-flow'], u.counts['skill:progress'], /積んだ値だけ 1/.test(log)], [2, 2, 1, true])
   ;({ log, u } = run())
   check('変わっていなければ読み直さない', /数え直し 0・変わらず 1/.test(log), true)
 } finally {

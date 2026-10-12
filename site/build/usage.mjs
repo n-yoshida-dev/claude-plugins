@@ -29,8 +29,6 @@ import { fileURLToPath } from 'node:url'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..', '..')
 
-// 数え方（このファイルのコード）を変えたら上げる。上げると、記録が残っているセッションを全部数え直す
-const COUNTER_VERSION = 1
 const ROOT_LABEL = '(apps ルート)'
 
 /** コマンドラインの --名前 値 を読む */
@@ -161,13 +159,17 @@ function loadCuts() {
       ref: s.ref ?? '',
       each: s.each ?? null,
       // fromPart の行は部品ごとの回数をそのまま出す（同じ物を 2 通りに数えない）。part の行は、当たった回を部品の回数にも足す
-      rows: (s.rows ?? []).map((r) => ({
-        id: r.id,
-        label: r.label,
-        fromPart: r.fromPart ?? null,
-        part: r.part ?? null,
-        match: r.fromPart ? {} : compile(r.match, `${s.id}/${r.id}`),
-      })),
+      rows: (s.rows ?? []).map((r) => {
+        if (r.since && !/^\d{4}-\d{2}-\d{2}$/.test(r.since)) throw new Error(`usage.json の ${s.id}/${r.id} の since は YYYY-MM-DD で書く（${r.since}）`)
+        return {
+          id: r.id,
+          label: r.label,
+          since: r.since ?? null,
+          fromPart: r.fromPart ?? null,
+          part: r.part ?? null,
+          match: r.fromPart ? {} : compile(r.match, `${s.id}/${r.id}`),
+        }
+      }),
     }
   })
   const sc = j.scenes ?? { rows: [] }
@@ -199,6 +201,7 @@ function segments(cmd) {
 /**
  * 1 区切りが、プラグインのスクリプトを動かしているなら、そのファイル名を返す（bash -n などの構文検査は外す）。
  * 変数に入れてから動かす形（L=…/look.mjs; node "$L" …）は、入れた所を 1 回と数える
+ * （そのあとの使い方は追わないので、F=…; bash -n "$F" のような検査だけの回も 1 回に入る）
  */
 function invokedScript(seg) {
   const tokens = seg.split(/\s+/).map((t) => t.replace(/^["']|["']$/g, ''))
@@ -489,6 +492,9 @@ function summarize(store, cuts, pluginNames) {
   const weekly = {}
   const rowTotals = {}
   const rowByProject = {}
+  // since のある行は、その日からの回数も別に数える（決まりが入る前の分が混ざり続けないように）
+  const sinceOf = Object.fromEntries(cuts.sections.flatMap((sec) => sec.rows.filter((r) => r.since).map((r) => [`${sec.id}/${r.id}`, r.since])))
+  const rowSince = {}
   const projects = {}
   for (const s of sessions) {
     projects[s.project] ??= { project: s.project, sessions: 0, prompts: 0, app: isApp(s.project) }
@@ -509,6 +515,7 @@ function summarize(store, cuts, pluginNames) {
         } else if (k.startsWith('r:') || k.startsWith('e:')) {
           const key = k.slice(2)
           rowTotals[key] = (rowTotals[key] ?? 0) + n
+          if (sinceOf[key] && day >= sinceOf[key]) rowSince[key] = (rowSince[key] ?? 0) + n
           rowByProject[key] ??= {}
           rowByProject[key][s.project] = (rowByProject[key][s.project] ?? 0) + n
         }
@@ -529,7 +536,12 @@ function summarize(store, cuts, pluginNames) {
       : sec.rows.map((r) =>
           r.fromPart
             ? { label: r.label, n: counts[r.fromPart] ?? 0, byProject: partByProject[r.fromPart] ?? {} }
-            : { label: r.label, n: rowTotals[`${sec.id}/${r.id}`] ?? 0, byProject: rowByProject[`${sec.id}/${r.id}`] ?? {} },
+            : {
+                label: r.label,
+                n: rowTotals[`${sec.id}/${r.id}`] ?? 0,
+                ...(r.since ? { since: r.since, nSince: rowSince[`${sec.id}/${r.id}`] ?? 0 } : {}),
+                byProject: rowByProject[`${sec.id}/${r.id}`] ?? {},
+              },
         )
     return { id: sec.id, title: sec.title, ref: sec.ref, rows }
   })
@@ -595,9 +607,10 @@ function summarize(store, cuts, pluginNames) {
 
 const plugins = collectPartNames()
 const cuts = loadCuts()
+// 数え方（このファイル・usage.json・部品の名前）が変わったら、記録が残っているセッションを全部数え直す
 const rulesHash = crypto
   .createHash('sha1')
-  .update(String(COUNTER_VERSION))
+  .update(fs.readFileSync(fileURLToPath(import.meta.url)))
   .update(cuts.raw)
   .update(JSON.stringify(plugins.map((p) => [p.name, [...p.skills], [...p.agents], [...p.hooks], p.scripts])))
   .digest('hex')
@@ -610,12 +623,18 @@ const appDirs = fs.readdirSync(APPS_ROOT).filter((d) => fs.statSync(path.join(AP
 const found = listSessions()
 let scanned = 0
 let reused = 0
+let partial = 0
 for (const s of found) {
   const sig = `${rulesHash}|${s.files.map(({ file }) => {
     const st = fs.statSync(file)
     return `${path.basename(file)}:${st.size}:${Math.floor(st.mtimeMs)}`
   }).join('|')}`
   const prev = store.sessions[s.id]
+  // 本体の記録が消えてサブエージェントの分だけ残ったセッションは、数え直すと小さくなるので積んだ値を残す
+  if (prev && !s.files.some((f) => f.main)) {
+    partial++
+    continue
+  }
   if (!FULL && prev?.sig === sig) {
     reused++
     continue
@@ -628,7 +647,7 @@ for (const s of found) {
   scanned++
 }
 const foundIds = new Set(found.map((s) => s.id))
-const kept = Object.keys(store.sessions).filter((id) => !foundIds.has(id)).length
+const kept = Object.keys(store.sessions).filter((id) => !foundIds.has(id)).length + partial
 
 // 積む（途中で止まっても壊れないよう、別名で書いてから置き換える）
 fs.mkdirSync(path.dirname(STORE), { recursive: true })

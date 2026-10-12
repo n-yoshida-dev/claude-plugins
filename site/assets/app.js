@@ -587,7 +587,13 @@ function pageUsage(root) {
   for (const sec of u.sections ?? []) {
     if (!sec.rows.length) continue
     root.append(el('h2', { text: `${sec.title}（${sec.ref}）` }))
-    root.append(table(['', '回数', 'アプリ別'], sec.rows.map((r) => [r.label, r.n, byProjectText(r.byProject)]), [1]))
+    // since のある行は、決まりが入った翌日からの回数も並べる（それより前の分が合計に混ざり続けるため）
+    if (sec.rows.some((r) => r.since)) {
+      const after = (r) => (r.since ? `${r.nSince}（${r.since.slice(5).replace('-', '/')}〜）` : null)
+      root.append(table(['', '回数', '決まりの翌日から', 'アプリ別'], sec.rows.map((r) => [r.label, r.n, after(r), byProjectText(r.byProject)]), [1, 2]))
+    } else {
+      root.append(table(['', '回数', 'アプリ別'], sec.rows.map((r) => [r.label, r.n, byProjectText(r.byProject)]), [1]))
+    }
   }
 
   // 5. アプリ別のセッションと入力
