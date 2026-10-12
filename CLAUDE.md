@@ -7,6 +7,9 @@
 
 - `.claude-plugin/marketplace.json` — カタログ。プラグインを増やしたらここに1行足す
 - `plugins/<name>/` — プラグイン本体。`.claude-plugin/plugin.json` / `hooks/hooks.json` / `skills/<skill>/SKILL.md`
+- `site/` — 仕組みの図（GitHub Pages）。中身は `site/build/generate.mjs` が部品のファイルから作る。
+  **部品を消す・改名するときは `site/build/flow.json` も直す**（指した部品が無いと CI の生成が止まる）。図の文章は増やさない（本人「文章量は少なくして」）
+- `logs/decisions.md` — 本人と合意した判断の台帳
 
 ## 守ること
 

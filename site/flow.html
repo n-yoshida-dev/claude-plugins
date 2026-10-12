@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作業の流れ</title>
+<meta name="description" content="セッションを開いてから PR をマージするまでに、apps-workflow のどの部品がいつ組み合わさって動くか">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="flow">
+<main>
+<nav class="top">
+  <span class="brand">apps-workflow の仕組み</span>
+  <a href="index.html">全体</a>
+  <a href="flow.html" aria-current="page">作業の流れ</a>
+  <a href="parts.html">各部品</a>
+  <a href="who.html">誰が始めるか</a>
+  <a href="where.html">置き場所</a>
+  <a href="changes.html">変わった記録</a>
+  <a href="usage.html">使用状況</a>
+  <a href="https://github.com/n-yoshida-dev/claude-plugins">GitHub</a>
+</nav>
+<h1>組み合わせと 1 回の作業の流れ</h1>
+<p class="claim">セッションを開いてからマージするまで。玉が今の手順、下の札がそこで動く部品。</p>
+<div id="fig"></div>
+<p class="meta" id="meta"></p>
+<details>
+<summary>AI 向け説明</summary>
+<div class="ai">
+<p>手順の並びと、各手順でどの部品が動くかは <code>site/build/flow.json</code> に書かれている（図の材料で唯一の手書き）。generate.mjs は各手順が指す部品 id が実在するかを確かめ、無ければ生成を止めるので、部品を消したり改名したときはこのファイルも直す。丸の色は手順を始める人（自動・Claude・提案して OK 後・両方・本人）、破線の丸は必要なときだけ通る手順。</p>
+</div>
+</details>
+</main>
+<script src="data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

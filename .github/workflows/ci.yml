@@ -38,6 +38,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: 仕組みの図の材料が作れるか（flow.json が無い部品を指していないか）
+        run: node site/build/generate.mjs --out /tmp/site-data.js
+
       - name: Claude Code のプラグイン検証（--strict）
         run: |
           npm install -g @anthropic-ai/claude-code

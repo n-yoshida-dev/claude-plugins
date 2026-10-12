@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>各部品の図と仕様</title>
+<meta name="description" content="apps-workflow の部品ごとに、誰が呼び何を使うかの小さな図と、いつ・どう動くかの仕様">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="parts">
+<main>
+<nav class="top">
+  <span class="brand">apps-workflow の仕組み</span>
+  <a href="index.html">全体</a>
+  <a href="flow.html">作業の流れ</a>
+  <a href="parts.html" aria-current="page">各部品</a>
+  <a href="who.html">誰が始めるか</a>
+  <a href="where.html">置き場所</a>
+  <a href="changes.html">変わった記録</a>
+  <a href="usage.html">使用状況</a>
+  <a href="https://github.com/n-yoshida-dev/claude-plugins">GitHub</a>
+</nav>
+<h1>各部品の概念図と仕様</h1>
+<p class="claim">1 枚のカードが 1 部品。左が呼ぶもの、右が使うもの。下の表が仕様。</p>
+<div id="fig"></div>
+<p class="meta" id="meta"></p>
+<details>
+<summary>AI 向け説明</summary>
+<div class="ai">
+<p>カードの 1 行目の役割は、スクリプトなら先頭コメントの 1 行目、スキルとエージェントなら frontmatter の description の最初の 1 文。仕様の表は種類ごとに違う：フックは hooks.json の event と matcher と timeout、スキルは呼び方（/プラグイン名:スキル名 と argument-hint）・disable-model-invocation・allowed-tools、エージェントは tools と model、スクリプトは「使い方：」「呼び元：」、写したプロンプトは出どころとライセンス。説明の全文は折りたたみに入れてある。</p>
+</div>
+</details>
+</main>
+<script src="data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

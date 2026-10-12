@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>使用状況</title>
+<meta name="description" content="apps-workflow の部品がどれだけ使われているかの集計（手元の環境でだけ中身が出る）">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="usage">
+<main>
+<nav class="top">
+  <span class="brand">apps-workflow の仕組み</span>
+  <a href="index.html">全体</a>
+  <a href="flow.html">作業の流れ</a>
+  <a href="parts.html">各部品</a>
+  <a href="who.html">誰が始めるか</a>
+  <a href="where.html">置き場所</a>
+  <a href="changes.html">変わった記録</a>
+  <a href="usage.html" aria-current="page">使用状況</a>
+  <a href="https://github.com/n-yoshida-dev/claude-plugins">GitHub</a>
+</nav>
+<h1>使用状況</h1>
+<p class="claim">部品ごとの使用回数。本人のセッション記録から数えるので、手元でだけ中身が出る。</p>
+<div id="fig"></div>
+<p class="meta" id="meta"></p>
+<details>
+<summary>AI 向け説明</summary>
+<div class="ai">
+<p>集計は <code>site/build/usage.mjs</code>（別の PR で作る）が ~/.claude/projects/ のセッション記録から部品ごとの回数を数え、<code>site/usage.js</code>（window.SITE_USAGE。コミット対象外）に書く。記録は 30 日で消えるので、日ごとの集計を手元に積み、週 1 回動かす。公開版では usage.js が無く、この説明だけが出る。</p>
+</div>
+</details>
+</main>
+<script src="data.js"></script>
+<script src="usage.js" onerror="this.remove()"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
