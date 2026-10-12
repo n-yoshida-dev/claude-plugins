@@ -43,6 +43,9 @@ jobs:
           node --check site/assets/app.js
           node site/build/generate.mjs --out /tmp/site-data.js
 
+      - name: 使用状況の集計（偽のセッション記録で usage.json の切り口と数え方を確かめる）
+        run: node site/build/test-usage.mjs
+
       - name: Claude Code のプラグイン検証（--strict）
         run: |
           npm install -g @anthropic-ai/claude-code

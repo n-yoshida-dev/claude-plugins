@@ -468,25 +468,139 @@ function pageChanges(root) {
 
 // ---------- 5. 使用状況 ----------
 
+/** 左が四角・右（値の端）が角丸の横棒の形。r は角丸の半径 */
+function hbarPath(x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2)
+  return `M${x},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h - rr} Q${x + w},${y + h} ${x + w - rr},${y + h} H${x} Z`
+}
+/** 見出しと行から表を作る。数の列は右寄せ */
+function table(headers, rows, numCols = []) {
+  const t = el('table', { class: 'tbl' })
+  t.append(el('thead', {}, el('tr', {}, headers.map((h, i) => el('th', { class: numCols.includes(i) ? 'num' : null, text: h })))))
+  const body = el('tbody')
+  for (const r of rows) body.append(el('tr', {}, r.map((c, i) => el('td', { class: numCols.includes(i) ? 'num' : null, text: c == null ? '—' : String(c) }))))
+  t.append(body)
+  return el('div', { class: 'tbl-wrap' }, t)
+}
+/** アプリごとの内訳を「skill-matrix 39 · portfolio 9」の形にする */
+function byProjectText(m) {
+  return Object.entries(m ?? {}).sort((a, b) => b[1] - a[1]).map(([p, n]) => `${p} ${n}`).join(' · ')
+}
+
 function pageUsage(root) {
   const u = window.SITE_USAGE
   if (!u) {
     root.append(el('p', { class: 'empty', html: '手元の集計がまだありません。集計は本人の環境のセッション記録から作るので、公開版には載せません。<br>作る： <code>node site/build/usage.mjs</code>（週 1 回。結果は site/usage.js で、コミット対象から外れている）' }))
     return
   }
-  root.append(el('p', { class: 'meta', text: `集計期間 ${u.from} 〜 ${u.to}（${u.days} 日）。最終集計 ${u.generatedAt?.slice(0, 10)}` }))
-  const rows = Object.entries(u.counts ?? {}).sort((a, b) => b[1] - a[1])
-  const max = Math.max(1, ...rows.map((r) => r[1]))
-  const W = 960, H = 20 + rows.length * 24
-  const s = svg('svg', { viewBox: `0 0 ${W} ${H}` })
-  rows.forEach(([id, n], i) => {
-    const p = byId[id]
-    const y = 10 + i * 24
-    s.append(svg('text', { x: 230, y: y + 14, 'text-anchor': 'end', class: 'label', text: shortName(id) }))
-    s.append(svg('rect', { x: 240, y: y + 2, width: Math.max(2, (n / max) * 620), height: 16, rx: 3, fill: p ? KIND[p.kind].color : 'var(--c-internal)', 'fill-opacity': 0.8 }))
-    s.append(svg('text', { x: 248 + Math.max(2, (n / max) * 620), y: y + 14, class: 'label small', text: String(n) }))
+  root.append(el('p', { class: 'meta', text: `集計期間 ${u.from} 〜 ${u.to}（${u.days} 日）・セッション ${u.sessions}。最終集計 ${u.generatedAt?.slice(0, 10)}` }))
+
+  // 1. 部品ごとの回数。数えられる種類の部品は 0 回でも並べる（使われていない物が見えるように）
+  const countable = ['hook', 'skill', 'agent', 'script']
+  const rows = parts
+    .filter((p) => countable.includes(p.kind))
+    .map((p) => ({ p, n: u.counts?.[p.id] ?? 0, apps: u.countsApps?.[p.id] ?? 0, human: u.human?.[p.id] ?? 0 }))
+    .sort((a, b) => b.n - a.n || KIND_ORDER.indexOf(a.p.kind) - KIND_ORDER.indexOf(b.p.kind) || a.p.name.localeCompare(b.p.name))
+  const others = u.notApps?.join('・') ?? 'その他'
+  root.append(el('h2', { text: '部品ごとの回数' }))
+  root.append(el('p', { class: 'legend' }, [
+    ...countable.map((k) => el('span', { style: `--c:${KIND[k].color}`, text: KIND[k].label })),
+    el('span', { style: '--c:color-mix(in srgb, var(--muted) 35%, transparent)', text: `薄い部分は ${others}` }),
+  ]))
+  const max = Math.max(1, ...rows.map((r) => r.n))
+  const ROW = 22, X0 = 240, BW = 600
+  const s = svg('svg', { viewBox: `0 0 960 ${16 + rows.length * ROW}` })
+  rows.forEach(({ p, n, apps, human }, i) => {
+    const y = 8 + i * ROW
+    const g = svg('g')
+    g.append(svg('text', { x: X0 - 10, y: y + 14, 'text-anchor': 'end', class: 'label', text: p.name }))
+    const wApps = (apps / max) * BW
+    const wRest = ((n - apps) / max) * BW
+    const color = KIND[p.kind].color
+    // 実アプリの分（濃い）と、それ以外の分（薄い）。間は 2px あける
+    if (wApps > 0) g.append(svg('path', { d: wRest > 0 ? `M${X0},${y + 3} h${wApps} v14 h${-wApps} Z` : hbarPath(X0, y + 3, Math.max(wApps, 2), 14, 4), fill: color }))
+    if (wRest > 0) {
+      const x = X0 + wApps + (wApps > 0 ? 2 : 0)
+      g.append(svg('path', { d: hbarPath(x, y + 3, Math.max(wRest, 2), 14, 4), fill: color, 'fill-opacity': 0.35 }))
+    }
+    const end = X0 + wApps + wRest + (wApps > 0 && wRest > 0 ? 2 : 0)
+    g.append(svg('text', { x: end + 6, y: y + 14, class: n ? 'label' : 'label small', text: human ? `${n}（本人 ${human}）` : String(n) }))
+    g.append(svg('title', { text: `${p.name}：${n} 回（実アプリ ${apps}・${others} ${n - apps}${human ? `・本人が打った ${human}` : ''}）` }))
+    s.append(g)
   })
-  root.append(figure(s, '部品ごとの使用回数（集計期間の合計）', 'usage'))
+  root.append(figure(s, '部品ごとの回数（集計期間の合計）。フックは Claude に何か渡した回、スクリプトは Claude が直接動かした回', 'usage-parts'))
+
+  // 2. 週ごとの回数。一覧に載る前の週は「まだ無かった」として灰色の点にする。
+  // 積んだ週が増えても列が潰れないよう、列の幅に下限を置き、入りきらない古い週は出さない（上の合計には入っている）
+  const used = rows.filter((r) => r.n > 0)
+  if (u.weeks?.length && used.length) {
+    root.append(el('h2', { text: '週ごとの回数' }))
+    const MIN_CW = 32
+    const skip = Math.max(0, u.weeks.length - Math.floor(700 / MIN_CW))
+    const weeks = u.weeks.slice(skip)
+    const weekly = (id) => (u.weekly?.[id] ?? []).slice(skip)
+    const CW = Math.min(64, Math.floor(700 / weeks.length)), CH = 20
+    const g = svg('svg', { viewBox: `0 0 960 ${30 + used.length * (CH + 2)}` })
+    weeks.forEach((w, j) => g.append(svg('text', { x: X0 + j * CW + CW / 2, y: 16, 'text-anchor': 'middle', class: 'label small', text: w.slice(5).replace('-', '/') })))
+    const vmax = Math.max(1, ...used.flatMap((r) => weekly(r.p.id)))
+    used.forEach((r, i) => {
+      const y = 24 + i * (CH + 2)
+      g.append(svg('text', { x: X0 - 10, y: y + 14, 'text-anchor': 'end', class: 'label', text: r.p.name }))
+      const since = u.firstListed?.[r.p.id]
+      weeks.forEach((w, j) => {
+        const n = weekly(r.p.id)[j] ?? 0
+        const x = X0 + j * CW
+        const e = new Date(`${w}T00:00:00`)
+        e.setDate(e.getDate() + 6)
+        const weekEnd = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}`
+        const before = since && weekEnd < since
+        const cell = svg('g')
+        if (before) {
+          cell.append(svg('circle', { cx: x + CW / 2, cy: y + CH / 2, r: 1.5, fill: 'var(--line)' }))
+        } else if (n === 0) {
+          cell.append(svg('rect', { x: x + 1, y, width: CW - 2, height: CH, rx: 3, fill: 'none', stroke: 'var(--line)' }))
+        } else {
+          const op = 0.18 + 0.82 * Math.sqrt(n / vmax)
+          cell.append(svg('rect', { x: x + 1, y, width: CW - 2, height: CH, rx: 3, fill: 'var(--accent)', 'fill-opacity': op }))
+          cell.append(svg('text', { x: x + CW / 2, y: y + 14, 'text-anchor': 'middle', class: 'label', style: `font-size:10.5px${op > 0.55 ? ';fill:#fff' : ''}`, text: String(n) }))
+        }
+        cell.append(svg('title', { text: `${r.p.name}・${w} の週：${before ? 'まだ無かった' : `${n} 回`}` }))
+        g.append(cell)
+      })
+    })
+    const range = skip ? `直近 ${weeks.length} 週。それより前は上の合計にだけ入る。` : ''
+    root.append(figure(g, `週ごとの回数（月曜始まり）。${range}枠だけは 0 回、点はスキルの一覧に載る前の週`, 'usage-weekly'))
+  }
+
+  // 3. 場面があったのに使ったか（11 節）
+  if (u.scenes?.length) {
+    root.append(el('h2', { text: '場面があったのに使ったか（11 節）' }))
+    root.append(table(
+      ['部品', '使えたセッション', '場面があった', 'うち使った', '使ったセッション（うち実アプリ）'],
+      u.scenes.map((r) => [r.label, r.available, r.scene, r.usedInScene, `${r.used}（${r.usedApps}）`]),
+      [1, 2, 3, 4],
+    ))
+    root.append(el('p', { class: 'meta', text: '場面は、使えたセッション（スキルの一覧に載っていた）の中で数える。— は決め方が無い物' }))
+  }
+
+  // 4. 3 節の切り口
+  for (const sec of u.sections ?? []) {
+    if (!sec.rows.length) continue
+    root.append(el('h2', { text: `${sec.title}（${sec.ref}）` }))
+    // since のある行は、決まりが入った翌日からの回数も並べる（それより前の分が合計に混ざり続けるため）
+    if (sec.rows.some((r) => r.since)) {
+      const after = (r) => (r.since ? `${r.nSince}（${r.since.slice(5).replace('-', '/')}〜）` : null)
+      root.append(table(['', '回数', '決まりの翌日から', 'アプリ別'], sec.rows.map((r) => [r.label, r.n, after(r), byProjectText(r.byProject)]), [1, 2]))
+    } else {
+      root.append(table(['', '回数', 'アプリ別'], sec.rows.map((r) => [r.label, r.n, byProjectText(r.byProject)]), [1]))
+    }
+  }
+
+  // 5. アプリ別のセッションと入力
+  if (u.projects?.length) {
+    root.append(el('h2', { text: 'アプリ別' }))
+    root.append(table(['アプリ', 'セッション', '本人の入力'], u.projects.map((p) => [p.app ? p.project : `${p.project}（実アプリ外）`, p.sessions, p.prompts]), [1, 2]))
+  }
 }
 
 // ---------- 起動 ----------
