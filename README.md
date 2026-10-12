@@ -59,6 +59,31 @@ CLI=$(ls -d ~/.vscode-server/extensions/anthropic.claude-code-*/resources/native
 プラグインを更新したら、利用側は `/plugin marketplace update n-yoshida-dev` →
 `/plugin update apps-workflow@n-yoshida-dev` で取り込む（`version` を上げた変更だけが配られる）。
 
+## 仕組みの図（site/）
+
+部品が誰に呼ばれ、何を使い、いつ動くかを図にしたページ。**https://n-yoshida-dev.github.io/claude-plugins/**
+
+| ページ | 図 |
+|---|---|
+| `index.html` | 全体の概念図 |
+| `flow.html` | 1 回の作業の流れ（どの手順でどの部品が組み合わさるか。動く） |
+| `parts.html` | 部品ごとの概念図と仕様 |
+| `who.html` | 誰が始めるか（自動／Claude／提案して OK 後／本人） |
+| `where.html` | 置き場所と効く範囲 |
+| `changes.html` | 版ごとに増えた・直した・外した部品 |
+| `usage.html` | 使用回数（本人の環境でだけ中身が出る） |
+
+図の中身は手で書かない。`site/build/generate.mjs` が部品のファイル（hooks.json・SKILL.md・agents・scripts の先頭コメント・config・prompts/sources.json・git の履歴）から `site/data.js` を作り、
+main にマージすると GitHub Actions（`pages.yml`）が作り直して GitHub Pages に出す。部品に関わる中身（名前・出来事・誰が始めるか・つながり）は手で書かない。
+手で書くのは、作業の流れの手順 `site/build/flow.json`（指した部品が無ければ生成が止まる）と、置き場所の図の段の名前と効く範囲（Claude Code の仕様で、部品のファイルからは導けない）だけ。
+
+```bash
+node site/build/generate.mjs           # 手元で見る（site/data.js を作る。コミットしない）
+node site/build/generate.mjs --local   # どのアプリに入っているかも足す（公開版には出さない）
+```
+
+各図は「SVG を書き出す」「PNG を書き出す」で画像にでき、記事に貼れる。
+
 ## 開発
 
 ```bash

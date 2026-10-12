@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>変わった記録</title>
+<meta name="description" content="apps-workflow の版ごとに、増えた・直した・外した部品の記録">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="changes">
+<main>
+<nav class="top">
+  <span class="brand">apps-workflow の仕組み</span>
+  <a href="index.html">全体</a>
+  <a href="flow.html">作業の流れ</a>
+  <a href="parts.html">各部品</a>
+  <a href="who.html">誰が始めるか</a>
+  <a href="where.html">置き場所</a>
+  <a href="changes.html" aria-current="page">変わった記録</a>
+  <a href="usage.html">使用状況</a>
+  <a href="https://github.com/n-yoshida-dev/claude-plugins">GitHub</a>
+</nav>
+<h1>変わった記録</h1>
+<p class="claim">版を上げたコミットごとに、何が増え、何が直り、何が外れたか。見失わないための記録。</p>
+<div id="fig"></div>
+<p class="meta" id="meta"></p>
+<details>
+<summary>AI 向け説明</summary>
+<div class="ai">
+<p>plugin.json を変えたコミットを git log で拾い、前の版との差分（git diff --name-status）を増えた・直した・外したに分けている。plugin.json 自体は除く。CHANGELOG は書かない方針で、この図がその代わり。GitHub Actions では fetch-depth: 0 で全履歴を取る必要がある。</p>
+</div>
+</details>
+</main>
+<script src="data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

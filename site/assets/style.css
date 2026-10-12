@@ -1,0 +1,122 @@
+/* 仕組みの図の共通の見た目。値はここが正本。色は役割ごとのトークンで持ち、明暗の両方で読めるようにする */
+:root {
+  --bg: #fbfaf7;
+  --fg: #1f2328;
+  --muted: #6b7280;
+  --line: #d6d3cd;
+  --panel: #ffffff;
+  --accent: #2f6fed;
+  /* 誰が始めるか（3 色＋補助） */
+  --c-auto: #2e8b57;     /* 自動で動く */
+  --c-propose: #d97706;  /* Claude が提案して OK 後 */
+  --c-human: #c2410c;    /* 本人が打つ */
+  --c-claude: #2f6fed;   /* Claude が自分で呼ぶ */
+  --c-both: #7c3aed;     /* 本人も Claude も */
+  --c-internal: #9ca3af; /* 呼ばれるだけの裏方 */
+  /* 部品の種類 */
+  --k-hook: var(--c-auto);
+  --k-skill: var(--c-claude);
+  --k-agent: #0e7490;
+  --k-script: #6b7280;
+  --k-config: #a16207;
+  --k-prompt: #be185d;
+  --k-test: #4b5563;
+  --radius: 8px;
+  font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171b;
+    --fg: #e6e6e3;
+    --muted: #9aa0a6;
+    --line: #3a3f47;
+    --panel: #1d2026;
+    --accent: #7aa2ff;
+    --c-auto: #4fc07a;
+    --c-propose: #f0a63a;
+    --c-human: #f0774a;
+    --c-claude: #7aa2ff;
+    --c-both: #b08cff;
+    --c-internal: #7a808a;
+    --k-agent: #3cc3dc;
+    --k-config: #e0b341;
+    --k-prompt: #f06aa8;
+    --k-script: #9aa0a6;
+    --k-test: #8a909a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171b; --fg: #e6e6e3; --muted: #9aa0a6; --line: #3a3f47; --panel: #1d2026; --accent: #7aa2ff;
+  --c-auto: #4fc07a; --c-propose: #f0a63a; --c-human: #f0774a; --c-claude: #7aa2ff; --c-both: #b08cff; --c-internal: #7a808a;
+  --k-agent: #3cc3dc; --k-config: #e0b341; --k-prompt: #f06aa8; --k-script: #9aa0a6; --k-test: #8a909a;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); line-height: 1.6; font-size: 15px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+main { max-width: 1040px; margin: 0 auto; padding: 16px 16px 64px; }
+
+/* 上の案内 */
+.top { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 12px 0 8px; border-bottom: 1px solid var(--line); }
+.top .brand { font-weight: 700; margin-right: 8px; }
+.top a { color: var(--muted); font-size: 13px; padding: 2px 0; }
+.top a[aria-current="page"] { color: var(--fg); border-bottom: 2px solid var(--accent); }
+
+h1 { font-size: 22px; margin: 20px 0 4px; }
+h2 { font-size: 17px; margin: 28px 0 8px; }
+.claim { color: var(--muted); margin: 0 0 16px; }
+.meta { color: var(--muted); font-size: 12px; }
+
+/* 図 */
+figure { margin: 0 0 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; overflow: hidden; }
+figure svg { display: block; max-width: 100%; height: auto; color: var(--fg); font-family: inherit; }
+figcaption { color: var(--muted); font-size: 13px; margin-top: 8px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; }
+button { font: inherit; font-size: 13px; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* SVG の部品 */
+svg .box { fill: var(--panel); stroke: currentColor; stroke-width: 1.2; }
+svg .box.soft { stroke: var(--line); }
+svg .label { font-size: 12px; fill: currentColor; }
+svg .label.small { font-size: 10.5px; fill: var(--muted); }
+svg .label.strong { font-weight: 700; font-size: 13px; }
+svg .edge { stroke: currentColor; stroke-width: 1.2; fill: none; }
+svg .edge.flow { stroke-dasharray: 6 5; animation: dash 1.2s linear infinite; }
+svg .edge.faint { stroke: var(--line); }
+svg .edge-label { font-size: 10.5px; fill: var(--muted); }
+svg .chip { rx: 4; stroke-width: 1; }
+@keyframes dash { to { stroke-dashoffset: -11; } }
+.paused svg .edge.flow, .paused svg .pulse { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { svg .edge.flow, svg .pulse { animation: none; } }
+
+/* 凡例・一覧 */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; background: var(--c); vertical-align: -1px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; border-top: 3px solid var(--k, var(--line)); }
+.card h3 { margin: 0 0 4px; font-size: 15px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.card h3 code { font-size: 12px; color: var(--muted); font-weight: 400; }
+.card .role { margin: 0 0 8px; font-size: 13px; }
+.card dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 8px 0 0; font-size: 12.5px; }
+.card dt { color: var(--muted); }
+.card dd { margin: 0; overflow-wrap: anywhere; }
+.card figure { padding: 6px; margin: 6px 0 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em; }
+details { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 8px; }
+details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+details .ai { font-size: 13px; color: var(--muted); }
+.card details { margin-top: 8px; border: 0; padding: 0; }
+.card details p { font-size: 12.5px; margin: 6px 0 0; }
+.empty { color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); padding: 16px; }
+.row { display: grid; grid-template-columns: 90px 70px 1fr; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.row .bars { display: flex; gap: 2px; height: 10px; margin-top: 6px; }
+.row .bars i { display: block; height: 100%; border-radius: 2px; }
+.row .bars .add { background: var(--c-auto); }
+.row .bars .mod { background: var(--c-claude); }
+.row .bars .del { background: var(--c-human); }
+.row ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; columns: 2; }
+@media (max-width: 600px) { .row { grid-template-columns: 80px 1fr; } .row .subject { grid-column: 1 / -1; } .row ul { columns: 1; } }

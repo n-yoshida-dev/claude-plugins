@@ -6,3 +6,7 @@ CLAUDE.local.md
 .DS_Store
 .vscode/
 .idea/
+
+# 仕組みの図の生成物（部品のファイルから作り直す。使用状況は本人の環境の集計）
+site/data.js
+site/usage.js

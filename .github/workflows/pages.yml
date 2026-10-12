@@ -1,0 +1,51 @@
+name: 仕組みの図を GitHub Pages に出す
+
+# main にマージしたときだけ、部品のファイルから図の材料（site/data.js）を作り直して公開する。
+# タイマーでは回さない（図の材料は部品を変えたときにしか変わらない）
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 図の材料を作る
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # 版の履歴（変わった記録）を全部読むため
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: 部品のファイルから data.js を作る
+        run: node site/build/generate.mjs
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Pages に出す
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

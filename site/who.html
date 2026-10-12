@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>誰が始めるか</title>
+<meta name="description" content="apps-workflow の部品を、自動で動く・Claude が呼ぶ・提案して OK 後・本人が打つ、で塗り分けた地図">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="who">
+<main>
+<nav class="top">
+  <span class="brand">apps-workflow の仕組み</span>
+  <a href="index.html">全体</a>
+  <a href="flow.html">作業の流れ</a>
+  <a href="parts.html">各部品</a>
+  <a href="who.html" aria-current="page">誰が始めるか</a>
+  <a href="where.html">置き場所</a>
+  <a href="changes.html">変わった記録</a>
+  <a href="usage.html">使用状況</a>
+  <a href="https://github.com/n-yoshida-dev/claude-plugins">GitHub</a>
+</nav>
+<h1>誰が始めるかの地図</h1>
+<p class="claim">本人が何もしなくても動くものと、本人が打たないと動かないものを分ける。</p>
+<div id="fig"></div>
+<p class="meta" id="meta"></p>
+<details>
+<summary>AI 向け説明</summary>
+<div class="ai">
+<p>列は generate.mjs が frontmatter の文から機械的に決めている。フックは常に「自動」。スキルは disable-model-invocation: true なら「本人が打つ」、description に「OK をもらう」があれば「Claude が提案して OK 後」、「聞かずに呼ぶ」か「自分で」があれば「Claude が自分で呼ぶ」、どれも無ければ「本人も Claude も」。エージェントは「Claude が自分で呼ぶ」。スクリプト・設定・プロンプトは呼ばれるだけの裏方。分類を変えたいときは、この表を手で直すのではなく、部品の description を直す。</p>
+</div>
+</details>
+</main>
+<script src="data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

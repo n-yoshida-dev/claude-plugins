@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>apps-workflow の仕組み</title>
+<meta name="description" content="自作アプリ共通の Claude Code プラグイン apps-workflow の部品が、誰に呼ばれ、何を使うかの全体図">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="index">
+<main>
+<nav class="top">
+  <span class="brand">apps-workflow の仕組み</span>
+  <a href="index.html" aria-current="page">全体</a>
+  <a href="flow.html">作業の流れ</a>
+  <a href="parts.html">各部品</a>
+  <a href="who.html">誰が始めるか</a>
+  <a href="where.html">置き場所</a>
+  <a href="changes.html">変わった記録</a>
+  <a href="usage.html">使用状況</a>
+  <a href="https://github.com/n-yoshida-dev/claude-plugins">GitHub</a>
+</nav>
+<h1>全体の概念図</h1>
+<p class="claim">本人が打つ・Claude が呼ぶ・出来事で動く、の 3 つの入口から、部品がどうつながるか。</p>
+<div id="fig"></div>
+<p class="meta" id="meta"></p>
+<details>
+<summary>AI 向け説明</summary>
+<div class="ai">
+<p>このサイトは Claude Code のプラグイン apps-workflow（リポジトリ n-yoshida-dev/claude-plugins）の構造図。中身は <code>site/build/generate.mjs</code> が部品のファイル（hooks.json、SKILL.md と agents の frontmatter、scripts の先頭コメント、config、prompts/sources.json、git の履歴）から生成した <code>data.js</code> だけで描かれ、手で書いた図の内容は <code>site/build/flow.json</code>（作業の流れの手順）のみ。</p>
+<p>部品の種類：フック（出来事で自動実行。PreToolUse / PostToolUse / SessionStart）、スキル（手順書。/apps-workflow:名前 で呼ぶ）、エージェント（読み取り専用の検品役）、スクリプト（裏方の bash / node）、設定の表（外部由来の値）、写したプロンプト（外部リポジトリから改変なし）、テスト（CI で回す）。部品どうしの線は「呼び元：」の記述と説明文の相互参照から機械的に拾っている。</p>
+<p>更新：main にマージすると GitHub Actions が生成して GitHub Pages に出す。本人の環境に依存する情報（どのアプリに導入済みか、使用回数）は公開版に含めない。</p>
+</div>
+</details>
+</main>
+<script src="data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>置き場所の地図</title>
+<meta name="description" content="Claude Code の決まりと apps-workflow の部品が、どのファイルに置かれ、どの範囲に効くか">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="where">
+<main>
+<nav class="top">
+  <span class="brand">apps-workflow の仕組み</span>
+  <a href="index.html">全体</a>
+  <a href="flow.html">作業の流れ</a>
+  <a href="parts.html">各部品</a>
+  <a href="who.html">誰が始めるか</a>
+  <a href="where.html" aria-current="page">置き場所</a>
+  <a href="changes.html">変わった記録</a>
+  <a href="usage.html">使用状況</a>
+  <a href="https://github.com/n-yoshida-dev/claude-plugins">GitHub</a>
+</nav>
+<h1>置き場所の地図</h1>
+<p class="claim">上ほど広く効き、下ほどそのアプリだけ。プラグインの本体は 3 段目にある。</p>
+<div id="fig"></div>
+<p class="meta" id="meta"></p>
+<details>
+<summary>AI 向け説明</summary>
+<div class="ai">
+<p>Claude Code は CLAUDE.md を ~/.claude → 作業ディレクトリの親 → 作業ディレクトリの順に読み、後に読んだものが前を細かくする。プラグインは ~/.claude/plugins/installed_plugins.json に導入の記録が置かれ、各リポジトリの .claude/settings.json の enabledPlugins で有効になる。この図の段の名前と効く範囲は手で書いている（Claude Code の仕様で、このリポジトリのファイルからは導けない）。プラグイン名・版・導入先だけが data.js から入る。導入先は <code>--local</code> を付けて生成したときだけ出る。</p>
+</div>
+</details>
+</main>
+<script src="data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
