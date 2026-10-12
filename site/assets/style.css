@@ -120,3 +120,12 @@ details .ai { font-size: 13px; color: var(--muted); }
 .row .bars .del { background: var(--c-human); }
 .row ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; columns: 2; }
 @media (max-width: 600px) { .row { grid-template-columns: 80px 1fr; } .row .subject { grid-column: 1 / -1; } .row ul { columns: 1; } }
+
+/* 表（使用状況）。幅が足りなければ表だけ横に動かす */
+.tbl-wrap { overflow-x: auto; margin: 0 0 8px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.tbl th, .tbl td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.tbl th { color: var(--muted); font-weight: 400; font-size: 12px; white-space: nowrap; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tbl td:last-child:not(.num) { color: var(--muted); font-size: 12px; }

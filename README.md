@@ -80,7 +80,11 @@ main にマージすると GitHub Actions（`pages.yml`）が作り直して Git
 ```bash
 node site/build/generate.mjs           # 手元で見る（site/data.js を作る。コミットしない）
 node site/build/generate.mjs --local   # どのアプリに入っているかも足す（公開版には出さない）
+node site/build/usage.mjs              # 使用回数を数えて site/usage.js を作る（公開版には出さない）
 ```
+
+使用回数は、本人のセッション記録（`~/.claude/projects/`）から `site/build/usage.mjs` が数える。切り口（ops の棚卸しの文書 3 節・11 節）は手書きの `site/build/usage.json`。
+記録は 30 日で消えるので、セッションごと・日ごとの回数を `~/.local/share/claude-plugins/usage-store.json` に積む。systemd のタイマー `claude-plugins-usage.timer` が週 1 回、`generate.mjs --local` と一緒に動かす。
 
 各図は「SVG を書き出す」「PNG を書き出す」で画像にでき、記事に貼れる。
 

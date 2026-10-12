@@ -1,0 +1,77 @@
+{
+  "about": "使用状況（図 5）の切り口。手で書く材料。出どころは ops の docs/2026-10-11-apps-開発環境の棚卸し.md の 3 節（使われ方の実測）と 11 節（場面があったのに使ったか）。部品ごとの回数（スキル・エージェント・フック・スクリプト）は usage.mjs が部品のファイル名から数えるので、ここには書かない",
+  "matchers": "match に書ける物：session（セッションごとに 1）／prompt（本人の入力）／tool（道具の名前）／bash（Bash のコマンドを ; && | などで区切った 1 区切りずつ。先頭の環境変数の代入は外す）／skill（Skill 道具で呼んだスキル名）／command（本人が打ったスラッシュコマンド。/ を含む）／agent（サブエージェントの種類）／edit（Edit・Write で書いたファイルのパス）／screen（edit のうち scenes の screenFile に当たる画面のファイル）／blocked（失敗した道具の結果の文）／context（フックが Claude に渡した文）。値は正規表現（session・prompt・screen は true）。1 つの match に複数書けば、どれかに当たれば数える。行に part を書くと、当たった回をその部品の回数にも足す。match の代わりに fromPart を書くと、その部品の回数をそのまま出す。場面の listed は、スキルの一覧に載った名前に当てる正規表現",
+  "notApps": ["claude-plugins", "(apps ルート)"],
+  "sections": [
+    {
+      "id": "volume",
+      "title": "動いた量",
+      "ref": "3 節",
+      "rows": [
+        { "id": "sessions", "label": "セッション", "match": { "session": true } },
+        { "id": "prompts", "label": "本人の入力", "match": { "prompt": true } },
+        { "id": "ultracode", "label": "ultracode（Workflow の実行）", "match": { "tool": "^Workflow$" } }
+      ]
+    },
+    {
+      "id": "rules",
+      "title": "決まりの守られ方",
+      "ref": "3 節",
+      "rows": [
+        { "id": "git-add-all", "label": "git add -A / git add . / commit -a（09-27 から禁止）", "match": { "bash": ["^git\\s+(-C\\s+\\S+\\s+)?add\\s+(.*\\s)?(-A|--all|\\.)(\\s|$)", "^git\\s+(-C\\s+\\S+\\s+)?commit\\s+(.*\\s)?(-[b-zA-Z]*a[a-zA-Z]*|--all)(\\s|$)"] } },
+        { "id": "ask", "label": "選択肢の画面で聞いた（AskUserQuestion。10-04 から読ませる物には使わない）", "match": { "tool": "^AskUserQuestion$" } },
+        { "id": "codex-direct", "label": "Codex を入口（codex-run.sh）を通さず直接呼んだ", "match": { "bash": "^(\\S*/)?codex\\s+(-\\S+\\s+)*exec\\s+-" } },
+        { "id": "codex-wrapper", "label": "Codex を入口（codex-run.sh）から呼んだ", "fromPart": "script:codex-run.sh" }
+      ]
+    },
+    {
+      "id": "guards",
+      "title": "止めた・断った",
+      "ref": "3 節（2-1 の 6〜9）",
+      "rows": [
+        { "id": "guard-secrets", "label": "guard-secrets.sh が秘密ファイルのコミットを止めた", "part": "hook:guard-secrets.sh", "match": { "blocked": "BLOCKED: 秘密情報" } },
+        { "id": "dangerous-bash", "label": "dangerous-bash-guard.sh が危ないコマンドを止めた", "match": { "blocked": "危険なコマンドを検知しました" } },
+        { "id": "deny", "label": "settings.json の deny で止めた", "match": { "blocked": "was blocked by a deny rule" } },
+        { "id": "auto-mode", "label": "auto モードの判定で止めた", "match": { "blocked": "denied by the Claude Code auto mode classifier" } },
+        { "id": "denied", "label": "許可が下りなかった（その他）", "match": { "blocked": "^Permission to use .* has been denied" } }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "security-guidance（公式の見張り役）",
+      "ref": "11-2",
+      "rows": [
+        { "id": "sg-notice", "label": "編集の直後に危ない書き方を知らせた", "match": { "context": "\\[from security-guidance" } }
+      ]
+    },
+    {
+      "id": "commands",
+      "title": "本人が打ったスラッシュコマンド",
+      "ref": "3 節",
+      "each": "command"
+    },
+    {
+      "id": "outside",
+      "title": "プラグインの外のスキル・エージェント・MCP",
+      "ref": "3 節（2-2 の 24〜26）",
+      "each": "outside"
+    }
+  ],
+  "scenes": {
+    "about": "11 節の「作りの穴か、場面がまだ来ていないか」。セッションを単位に、使えた（スキル一覧に載っていた）・場面があった・使った、を数える。場面の決め方が無い部品は、使えた・使っただけを出す",
+    "screenFile": "\\.(css|scss|sass|less|tsx|jsx|astro|vue|svelte|html)$",
+    "screenFileExclude": "(^|/)(node_modules|dist|build|coverage|dashboard|test|tests|__tests__|e2e)/|\\.(test|spec)\\.[jt]sx?$",
+    "rows": [
+      { "id": "look", "label": "look（見た目の点検）", "part": "skill:look", "listed": "^apps-workflow:look$", "scene": { "screen": true }, "used": { "skill": "^apps-workflow:look$", "command": "^/apps-workflow:look$" } },
+      { "id": "frontend-design", "label": "frontend-design（画面づくりの手本）", "listed": "^frontend-design(:frontend-design)?$", "scene": { "screen": true }, "used": { "skill": "^frontend-design(:frontend-design)?$" } },
+      { "id": "look-reviewer", "label": "look-reviewer（見た目の点検役）", "part": "agent:look-reviewer", "scene": { "skill": "^apps-workflow:look$", "command": "^/apps-workflow:look$" }, "used": { "agent": "^apps-workflow:look-reviewer$" } },
+      { "id": "compete", "label": "compete（案のコンペ）", "part": "skill:compete", "listed": "^apps-workflow:compete$", "used": { "skill": "^apps-workflow:compete$", "command": "^/apps-workflow:compete$" } },
+      { "id": "codex-review", "label": "codex-review（Codex のレビュー）", "part": "skill:codex-review", "listed": "^apps-workflow:codex-review$", "used": { "skill": "^apps-workflow:codex-review$", "command": "^/apps-workflow:codex-review$" } },
+      { "id": "pr-flow", "label": "pr-flow（PR の手順）", "part": "skill:pr-flow", "listed": "^apps-workflow:pr-flow$", "scene": { "bash": "^gh\\s+pr\\s+create\\b" }, "used": { "skill": "^apps-workflow:pr-flow$", "command": "^/apps-workflow:pr-flow$" } },
+      { "id": "acceptance-reviewer", "label": "acceptance-reviewer（受け入れの検品役）", "part": "agent:acceptance-reviewer", "scene": { "bash": "^gh\\s+pr\\s+create\\b" }, "used": { "agent": "^apps-workflow:acceptance-reviewer$" } },
+      { "id": "handoff", "label": "handoff（引き継ぎ）", "part": "skill:handoff", "listed": "^apps-workflow:handoff$", "scene": { "bash": "^gh\\s+pr\\s+create\\b" }, "used": { "skill": "^apps-workflow:handoff$", "command": "^/apps-workflow:handoff$" } },
+      { "id": "skill-creator", "label": "skill-creator（スキルづくりの手本）", "listed": "(^|:)skill-creator$", "scene": { "edit": "(^|/)skills/[^/]+/SKILL\\.md$|(^|/)agents/[^/]+\\.md$" }, "used": { "skill": "(^|:)skill-creator$" } },
+      { "id": "discuss", "label": "/discuss（壁打ち。本人が打つ）", "listed": "^discuss$", "used": { "command": "^/discuss$", "skill": "^discuss$" } }
+    ]
+  }
+}
