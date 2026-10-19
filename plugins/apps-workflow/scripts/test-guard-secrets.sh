@@ -63,6 +63,10 @@ stage "メモ/議事録.md"
 check "日本語の普通のファイルは通す" hook_exits 0 "git commit -m x"
 stage "メモ/.env.example"
 check "雛形の .env.example は通す" hook_exits 0 "git commit -m x"
+stage $'docs\nsecrets/readme.txt'
+check "名前に改行を含むパスを 2 件に割らない（secrets/ の下ではない）" hook_exits 0 "git commit -m x"
+stage $'メ\nモ/.env'
+check "名前に改行を含むフォルダの .env も止める" hook_exits 2 "git commit -m x"
 stage "メモ/.env"
 check "git 以外のコマンドは検査しない" hook_exits 0 "ls -la"
 
