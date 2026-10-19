@@ -27,7 +27,9 @@ esac
 # コミット禁止のパターン。.gitignore と同じ対象をここでも明示的に定義する
 SECRET_RE='(^|/)(PRIVATE\.md|CLAUDE\.local\.md|\.env(\..+)?)$|\.local\.(json|md)$|(^|/)(secrets|data/private)/|(^|/)credentials\.json$|\.(pem|key|p12|keystore)$'
 
-STAGED=$(git diff --cached --name-only 2>/dev/null) || exit 0
+# -z で NUL 区切りにして読み、行に戻す。-z が無いと、git の core.quotePath が既定（true）の環境では
+# 日本語などを含むパスが "\343\203\241..." のように引用符付きで出て、末尾の .env が SECRET_RE に当たらない
+STAGED=$(git diff --cached --name-only -z 2>/dev/null | tr '\0' '\n') || exit 0
 [ -n "$STAGED" ] || exit 0
 
 # .env.example は雛形なのでコミットしてよい

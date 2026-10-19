@@ -226,6 +226,7 @@ check "使ったモデルの出どころを標準エラーに出す" stderr_has 
 check "サンドボックスを -s で明示する" has_seq -s read-only
 check "作業フォルダを -C で渡す" has_seq -C "$T/work"
 check "ユーザー設定を読まない" has_seq --ignore-user-config
+check "ユーザーとプロジェクトの .rules を読まない" has_seq --ignore-rules
 check "memories を切る" has_seq --disable memories
 check "記録を残さない（--ephemeral）" has_seq --ephemeral
 check "出来事を JSONL で受け取る" has_seq --json
