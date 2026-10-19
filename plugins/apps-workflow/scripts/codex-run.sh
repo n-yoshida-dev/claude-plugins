@@ -33,8 +33,9 @@
 #                        作業フォルダ（-C）や codex の実行ファイルが一覧の場所の中にあるときは止める（親の deny が勝ち、読めなくなるため）。
 #                        このときサンドボックスは -s ではなく -c sandbox_mode で渡す（-s を付けると権限のプロファイルが捨てられるため）
 #
-# 必ず付けるもの：-m・-c model_reasoning_effort・サンドボックス・--ignore-user-config・--disable memories・--json。
+# 必ず付けるもの：-m・-c model_reasoning_effort・サンドボックス・--ignore-user-config・--ignore-rules・--disable memories・--json。
 #   --ignore-user-config で ~/.codex/config.toml（Codex 側のプラグインや既定のモデル）を読まない。認証は保たれる
+#   --ignore-rules でユーザーとプロジェクトの .rules（コマンドの許可・禁止の決まり）を読まない。exec にも resume にもある（codex-cli 0.162 で確認）
 #   resume には -s が無いので、サンドボックスは -c sandbox_mode で渡す
 #
 # 呼ぶ前に、表と Codex の手元のモデル一覧を照らす（codex-models.sh check）。新しいモデルが出た・表のモデルが消えた・廃止の予定が付いた、
@@ -268,7 +269,7 @@ elif [ "${#deny_paths[@]}" -gt 0 ]; then
 else
   args+=(-s "$sandbox" -C "$workdir")
 fi
-args+=(--ignore-user-config --disable memories --json -o "$tmp_out")
+args+=(--ignore-user-config --ignore-rules --disable memories --json -o "$tmp_out")
 [ "$keep_session" -eq 1 ] || args+=(--ephemeral)
 [ "$skip_git_check" -eq 1 ] && args+=(--skip-git-repo-check)
 [ -n "$schema_file" ] && args+=(--output-schema "$schema_file")

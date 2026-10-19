@@ -27,16 +27,22 @@ esac
 # コミット禁止のパターン。.gitignore と同じ対象をここでも明示的に定義する
 SECRET_RE='(^|/)(PRIVATE\.md|CLAUDE\.local\.md|\.env(\..+)?)$|\.local\.(json|md)$|(^|/)(secrets|data/private)/|(^|/)credentials\.json$|\.(pem|key|p12|keystore)$'
 
-STAGED=$(git diff --cached --name-only 2>/dev/null) || exit 0
-[ -n "$STAGED" ] || exit 0
-
-# .env.example は雛形なのでコミットしてよい
-HITS=$(printf '%s\n' "$STAGED" | grep -E "$SECRET_RE" | grep -v '\.env\.example$' || true)
-[ -n "$HITS" ] || exit 0
+# -z で NUL 区切りにして読み、1 件ずつ照らす。-z が無いと、git の core.quotePath が既定（true）の環境では
+# 日本語などを含むパスが "\343\203\241..." のように引用符付きで出て、末尾の .env が SECRET_RE に当たらない。
+# 行に戻さないのは、名前に改行を含むパスが 2 件に割れて誤って当たるのを防ぐため。
+# git が失敗したとき（リポジトリの外など）は 1 件も読めず、下で exit 0 になる
+HITS=()
+while IFS= read -r -d '' path; do
+  [[ "$path" =~ $SECRET_RE ]] || continue
+  # .env.example は雛形なのでコミットしてよい
+  [[ "$path" == *.env.example ]] && continue
+  HITS+=("$path")
+done < <(git diff --cached --name-only -z 2>/dev/null)
+[ "${#HITS[@]}" -gt 0 ] || exit 0
 
 {
   echo "BLOCKED: 秘密情報・ローカル専用ファイルがステージされています。"
-  printf '%s\n' "$HITS" | sed 's/^/  - /'
+  printf '  - %s\n' "${HITS[@]}"
   echo "git restore --staged <file> で外してから再実行してください。"
 } >&2
 exit 2
