@@ -29,7 +29,7 @@
 <div class="ai">
 <p>集計は <code>site/build/usage.mjs</code> が ~/.claude/projects/ の apps のセッション記録（サブエージェントと ultracode の分を含む）から数え、<code>site/usage.js</code>（window.SITE_USAGE。コミット対象外）に書く。部品ごとの回数は部品のファイル名から、3 節・11 節の切り口は <code>site/build/usage.json</code>（手書き）から数える。</p>
 <p>記録は 30 日で消えるので、セッションごと・日ごとの回数を ~/.local/share/claude-plugins/usage-store.json に積む（記録が残るセッションは数え直し、消えたセッションは積んだ値を残す）。systemd のタイマー claude-plugins-usage.timer が週 1 回動かす。公開版では usage.js が無く、この説明だけが出る。</p>
-<p>数え方の限り：フックは Claude に何か渡した回だけが記録に残る（check-edited.sh ならエラーを知らせた回）。スクリプトは Claude が Bash で直接動かした回で、スクリプトの中から呼ばれた分は数えない。</p>
+<p>数え方の限り：フックは Claude に何か渡した回だけが記録に残る（check-edited.sh ならエラーを知らせた回）。スクリプトは Claude が Bash で直接動かした回で、スクリプトの中から呼ばれた分は数えない。look と frontend-design の「場面」は画面のファイルを 1 つでも変えたセッションで、frontend-design の決まり（新しい画面・大きな作り替え）より広い。小さな直しも場面に入るので、使った割合は低めに出る。</p>
 </div>
 </details>
 </main>
