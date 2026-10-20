@@ -3,6 +3,9 @@
 [n-yoshida-dev](https://github.com/n-yoshida-dev) の自作アプリ（`~/workspace/apps/`）で使い回す
 Claude Code プラグインのマーケットプレイス。
 
+> **これは作者の文書の決まり（PLAN / TODO / HANDOFF など）を前提にした自分用です。** ほかの人が使える形にしたものは [claude-code-toolkit](https://github.com/n-yoshida-dev/claude-code-toolkit) にあります。
+> This is the author's personal setup. For plugins meant for others, see [claude-code-toolkit](https://github.com/n-yoshida-dev/claude-code-toolkit).
+
 ## なぜプラグインにするか
 
 `.claude/settings.json`・`hooks/`・`skills/` は**親ディレクトリを遡って読まれない**（遡るのは `CLAUDE.md` だけ）。
