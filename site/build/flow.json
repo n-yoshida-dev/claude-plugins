@@ -1,14 +1,14 @@
 {
   "about": "1 回の作業の流れ（図 2＋6）。図の材料のうち、ここだけは手で書く。各手順の parts は generate.mjs が実在を確かめるので、部品を消したり改名したらここも直す",
   "steps": [
-    { "id": "start", "title": "セッションを開く", "actor": "auto", "parts": ["hook:session-briefing.sh", "script:progress.sh"], "note": "進捗表と未完タスクを Claude に流し込む" },
+    { "id": "start", "title": "セッションを開く", "actor": "auto", "parts": ["hook:session-briefing.sh"], "note": "HANDOFF.md を読むよう Claude に知らせる。進捗表は公開版の todo-progress が出す" },
     { "id": "edit", "title": "ファイルを編集する", "actor": "auto", "parts": ["hook:check-edited.sh", "hook:look-notice.sh"], "note": "型チェックと lint を回し、画面を変えたら見た目の点検を知らせる" },
     { "id": "look", "title": "見た目を点検する", "actor": "both", "parts": ["skill:look", "agent:look-reviewer", "script:look.mjs", "config:look-tools.json"], "note": "画面を変えた PR だけ。撮って、点検役に見せる", "optional": true },
     { "id": "design", "title": "設計を比べる・レビューする", "actor": "propose", "parts": ["skill:compete", "skill:codex-review", "script:codex-run.sh", "config:codex-models.json"], "note": "設計・画面の方向が複数あるとき。Claude が提案して OK 後", "optional": true },
     { "id": "commit", "title": "コミットする", "actor": "auto", "parts": ["hook:guard-secrets.sh"], "note": "秘密情報が入ったコミットを止める" },
     { "id": "check", "title": "CI と同じ検査を回す", "actor": "human", "parts": ["skill:pr-check"], "note": "本人が打つ。Claude は Bash で同じ検査を回す" },
-    { "id": "handoff", "title": "引き継ぎを書く", "actor": "claude", "parts": ["skill:handoff", "skill:progress"], "note": "PR を作る前に、同じブランチへ" },
+    { "id": "handoff", "title": "引き継ぎを書く", "actor": "claude", "parts": ["skill:handoff"], "note": "PR を作る前に、同じブランチへ" },
     { "id": "pr", "title": "PR を作り、検品し、マージする", "actor": "both", "parts": ["skill:pr-flow", "agent:acceptance-reviewer"], "note": "CI と受け入れレビューが通るまでマージしない" },
-    { "id": "watch", "title": "進捗を見る", "actor": "human", "parts": ["skill:dashboard", "skill:progress"], "note": "いつでも。開発ダッシュボードと進捗表", "optional": true }
+    { "id": "watch", "title": "進捗を見る", "actor": "human", "parts": ["skill:dashboard"], "note": "いつでも。開発ダッシュボードと進捗表（/todo-progress:progress）", "optional": true }
   ]
 }

@@ -78,7 +78,7 @@ try {
   const gone = session('claude-plugins', 's2', [
     { type: 'user', origin: { kind: 'human' }, message: { content: 'テスト' } },
     tool('Skill', { skill: 'apps-workflow:pr-flow' }),
-  ], [tool('Skill', { skill: 'apps-workflow:progress' })])
+  ], [tool('Skill', { skill: 'apps-workflow:dashboard' })])
   // 隣の apps-backup/x のセッション。記録のフォルダ名は apps のものと頭が同じになるが、数えない
   session('backup-x', 's3', [
     { type: 'user', origin: { kind: 'human' }, message: { content: '別の場所' } },
@@ -113,10 +113,10 @@ try {
   // 記録が消えても、積んだ値は残る（本体だけ消えた場合と、全部消えた場合）
   fs.rmSync(gone)
   ;({ log, u } = run())
-  check('本体の記録だけ消えても積んだ値を残す', [u.sessions, u.counts['skill:pr-flow'], u.counts['skill:progress'], /積んだ値だけ 1/.test(log)], [2, 2, 1, true])
+  check('本体の記録だけ消えても積んだ値を残す', [u.sessions, u.counts['skill:pr-flow'], u.counts['skill:dashboard'], /積んだ値だけ 1/.test(log)], [2, 2, 1, true])
   fs.rmSync(path.join(path.dirname(gone), 's2'), { recursive: true })
   ;({ log, u } = run())
-  check('記録が全部消えても積んだ値を残す', [u.sessions, u.counts['skill:pr-flow'], u.counts['skill:progress'], /積んだ値だけ 1/.test(log)], [2, 2, 1, true])
+  check('記録が全部消えても積んだ値を残す', [u.sessions, u.counts['skill:pr-flow'], u.counts['skill:dashboard'], /積んだ値だけ 1/.test(log)], [2, 2, 1, true])
   ;({ log, u } = run())
   check('変わっていなければ読み直さない', /数え直し 0・変わらず 1/.test(log), true)
 } finally {
