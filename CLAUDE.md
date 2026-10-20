@@ -10,7 +10,8 @@
 - `site/` — 仕組みの図（GitHub Pages）。部品に関わる中身は `site/build/generate.mjs` が部品のファイルから作り、app.js に直書きしない。
   手書きは `site/build/flow.json`（作業の流れ）と、置き場所の図の段の名前・効く範囲（Claude Code の仕様）だけ。
   **部品を消す・改名するときは `flow.json` も直す**（指した部品が無いと CI の生成が止まる）。図の文章は増やさない（本人「文章量は少なくして」）。
-  使用状況（図 5）は `site/build/usage.mjs` が本人のセッション記録から数える（手元だけ。週 1 回 systemd のタイマー）。切り口は手書きの `site/build/usage.json`、数え方を変えたら `test-usage.mjs` も直す（usage.mjs か usage.json を変えると、次の実行で残っている記録を全部数え直す）
+  使用状況（図 5）は `site/build/usage.mjs` が本人のセッション記録から数える（手元だけ。週 1 回 systemd のタイマー）。切り口は手書きの `site/build/usage.json`、数え方を変えたら `test-usage.mjs` も直す（usage.mjs か usage.json を変えると、次の実行で残っている記録を全部数え直す）。
+  タイマーが動いたかは `systemctl --user status claude-plugins-usage.service` で見る（`journalctl --user -u claude-plugins-usage` はログの回転で空になることがある。2026-10-20 に 10-19 の実行を確かめたとき空だった。本人「足してOK」）
 - `logs/decisions.md` — 本人と合意した判断の台帳
 
 ## 守ること
