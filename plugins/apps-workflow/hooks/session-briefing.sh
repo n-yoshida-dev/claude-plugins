@@ -36,11 +36,15 @@ fi
 TODO="$PROJECT_DIR/TODO.md"
 [ -f "$TODO" ] || exit 0
 
-# 公開の節（見出しに「公開」を含み、「公開後」「確認待ち」「保留」を含まない節）があるか
+# 公開の節（見出しに公開の語を含み、公開後・保留・回答待ちの語を含まない節）があるか。
+# 語は todo-progress の既定値（日本語と英語。大文字と小文字は区別しない）にそろえる。
+# そろえないと、英語の見出しの TODO で「公開まで残り」が表に出ているのに、ここが「出ない」と知らせてしまう。
+# apps では todo-progress の見出し語を設定で変えていないので、既定値だけを見る
 HAS_RELEASE=$(awk '
   /^## / {
-    s = $0; sub(/^## +/, "", s)
-    if (s ~ /公開/ && s !~ /公開後/ && s !~ /確認待ち/ && s !~ /保留/) { print "yes"; exit }
+    s = tolower($0); sub(/^## +/, "", s)
+    if (s ~ /確認待ち|waiting|保留|on hold|公開後|after release|post-release/) next
+    if (s ~ /公開|release/) { print "yes"; exit }
   }
 ' "$TODO")
 

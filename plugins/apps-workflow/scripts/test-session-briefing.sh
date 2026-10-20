@@ -89,6 +89,13 @@ cat > "$WORK/afteronly/TODO.md" <<'EOF'
 EOF
 check "公開後の節だけなら、公開の節が無いと知らせる" has "$(brief "$WORK/afteronly")" "「公開」を含む見出しが無いので"
 
+# 英語の見出し。todo-progress の既定値と同じく Release を公開の節と見なし、Post-release は見なさない
+mkdir -p "$WORK/english" "$WORK/english-after"
+printf '# TODO\n\n## Phase 2: Release\n\n- [ ] ship\n' > "$WORK/english/TODO.md"
+printf '# TODO\n\n## Post-release ideas\n\n- [ ] later\n' > "$WORK/english-after/TODO.md"
+check "英語の Release の見出しを公開の節と見なす" lacks "$(brief "$WORK/english")" "「公開」を含む見出しが無い"
+check "英語の Post-release だけなら、公開の節が無いと知らせる" has "$(brief "$WORK/english-after")" "「公開」を含む見出しが無いので"
+
 # TODO.md が無いフォルダでは何も出さない
 mkdir -p "$WORK/empty"
 check "TODO.md が無ければ何も出さない" test -z "$(brief "$WORK/empty")"
