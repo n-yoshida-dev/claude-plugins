@@ -38,7 +38,7 @@ git / gh / bd を実行し、「更新」ボタン（`POST /update`）を受け�
 | 固有の指標 | **（ここをこのリポジトリの内容に書き換える。`update.mjs` の `readProjectSpecific()`）** |
 | 折りたたみ：引き継ぎメモ全文・最近の合意・固有の指標の出力・未コミットのファイル・Claude 側の付箋・よく変わったファイル | `HANDOFF.md`・`logs/decisions.md`・`git status`・Beads・`git log` |
 
-進捗の数え方は apps-workflow の `progress.sh` と同じ（`##` 見出し = フェーズ、「確認待ち」「保留」「公開後」の節は合計から外す）。
+進捗の数え方は todo-progress（apps-workflow が依存する公開版）の `progress.sh` と同じ（`##` 見出し = フェーズ、「確認待ち」「保留」「公開後」の節は合計から外す）。
 
 ## 更新と自動化
 

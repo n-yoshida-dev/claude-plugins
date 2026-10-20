@@ -29,6 +29,10 @@
   apps-workflow を入れている全アプリで `claude plugin update apps-workflow@n-yoshida-dev --scope <project か local>` を実行する
   （どのアプリにどの範囲で入っているかは `~/.claude/plugins/installed_plugins.json`。app-template だけ local）。
   終わったら `installed_plugins.json` で全部が新しい版になったことを確かめる。動いているセッションには開き直したときに効く。
+  apps-workflow は v2.0.0 から公開版の `todo-progress@yoshida-toolkit` に依存している。**`plugin update` は増えた依存を入れない**
+  （依存が無いと apps-workflow ごと「failed to load」になる。2026-10-20 に試しの設定フォルダで確認）。依存を足した・変えた版を配るときは、
+  各アプリの `.claude/settings.json` に先に依存の行を PR で入れ、そのあと update に続けて `claude plugin install <依存> --scope <同じ範囲>` を実行し、
+  `claude plugin list` で両方が enabled になったことを見る（install に任せると、作業フォルダの settings.json に未コミットの 1 行が足され、次の `git pull` が止まる）
   `claude` は PATH に無いので、VS Code 拡張の中の `~/.vscode-server/extensions/anthropic.claude-code-<版>-linux-x64/resources/native-binary/claude` をフルパスで呼ぶ
   （2026-10-06 に、全アプリが 1.5.6（portfolio だけ 1.9.0）のまま止まっていて、compete（1.10.0）はどのアプリにも、codex-run.sh（1.6.0〜）は portfolio 以外に届いていなかったと判明。本人の承認「昇格してOKですよ」）
 - 変更したら `claude plugin validate . --strict` と `claude plugin validate plugins/<name> --strict` を通す

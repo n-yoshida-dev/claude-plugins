@@ -141,7 +141,7 @@ node "$(ls -d ~/.claude/plugins/cache/n-yoshida-dev/apps-workflow/*/skills/dashb
 | `template/README.md` | 目的・起動・更新・取得元・構成 | 固有指標の行だけ |
 | `hub.mjs`（写さない） | 全リポジトリのダッシュボードを 1 本で配信するハブ。プラグインの置き場所から直接起動する | 触らない |
 
-TODO.md の数え方は `hooks/progress.sh` と同じ（`##` = フェーズ、「確認待ち」「保留」「公開後」は合計から外す）。
+TODO.md の数え方は todo-progress（apps-workflow が依存する公開版）の `scripts/progress.sh` と同じ（`##` = フェーズ、「確認待ち」「保留」「公開後」は合計から外す）。
 HANDOFF.md は「現在地」「次…やること／一手」を含む `##` 見出しの節を取る。Beads は題名がプロジェクト名（CLAUDE.md の先頭見出し）で始まる epic の配下。
 この 3 つの規約を変えたら `update.mjs` の該当関数を直す。
 
@@ -150,4 +150,4 @@ HANDOFF.md は「現在地」「次…やること／一手」を含む `##` 見
 - **`gh` の項目が「取得できず」**：`gh auth status` を見る。未ログインでもほかの項目は出る
 - **Beads が「取得できず」**：`.beads/redirect` が無い（worktree に写していない）。`bd` はカレントディレクトリから探す
 - **「更新」を押しても変わらない**：ファイルを直接開いている（`file://`）。画面の「起動方法」のとおり `--serve --open` で起動する
-- **数字が progress.sh と違う**：`- [x]` の直後に空白が無い行や `##` 見出しの規約外の書き方。`readTodo()` の正規表現を見る
+- **数字が todo-progress の進捗表と違う**：`- [x]` の直後に空白が無い行や `##` 見出しの規約外の書き方。`readTodo()` の正規表現を見る

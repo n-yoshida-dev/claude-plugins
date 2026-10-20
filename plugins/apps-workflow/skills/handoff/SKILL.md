@@ -1,7 +1,6 @@
 ---
 name: handoff
 description: セッションの区切りに、今回やったことを HANDOFF.md / TODO.md / KNOWLEDGE.md / logs/decisions.md に反映して次のセッションへ引き継ぐ。Claude が自分で、ユーザーに聞かずに呼ぶ。呼ぶ場面は 3 つ。作業の PR の受け入れレビューを呼ぶ前（ふつうは PR を作る前。その作業ブランチに書き、同じ PR に入れてレビューを通す）。ユーザーの判断待ちで止まるときと、セッションを分けたほうがよいと判断したとき（「閉じてよい」と言う前）。ユーザーが区切り・終了・引き継ぎを告げたとき（「今日はここまで」「セッションを閉じる」「引き継ぎを書いて」。作業の途中でも呼ぶ）。引き継ぎだけの PR のマージは区切りに数えない。「分けて」と返してもらうのを待たない。書き終えて次のタスクに進めるなら、そのまま続ける。
-allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/progress.sh:*)
 ---
 
 ## 現在の状態
@@ -71,12 +70,14 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/progress.sh:*)
   節が無いアプリでは「## 現在地」の直前に `## 進捗` を作る。この節は 40 行の目安に含めない
 
   ```bash
-  bash ${CLAUDE_PLUGIN_ROOT}/hooks/progress.sh
+  ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/yoshida-toolkit/todo-progress/*/scripts/progress.sh
   ```
 
-  上のパスはスキルの読み込み時にプラグインの置き場所（絶対パス）へ置き換わる。`$` で始まる文字列のまま見えている場合や
-  ファイルが無い場合は、`ls ~/.claude/plugins/cache/n-yoshida-dev/apps-workflow/*/hooks/progress.sh` で探し、
-  いちばん新しいバージョンのものを `bash` で実行する。それも無ければ進捗表は飛ばし、報告に「進捗スクリプトが見つからない」と書く
+  進捗表の集計は、apps-workflow が依存している公開版の todo-progress（v2.0.0 から）が持っている。
+  上のコマンドで出たうち、いちばん新しいバージョンのものを `bash <そのパス>` で実行する（引数は要らない。既定の TODO.md と HANDOFF.md を読む）。
+  `/todo-progress:progress` は呼ばない（表のあとに補足を書く手順が付いていて、この節の中身には合わない）。
+  プラグインの置き場は設定フォルダ（`CLAUDE_CONFIG_DIR`。未設定なら `~/.claude`）の下にあるので、上のコマンドはそれに合わせてある。
+  ファイルが無ければ進捗表は飛ばし、報告に「todo-progress が入っていない。`claude plugin install todo-progress@yoshida-toolkit --scope project` で入れる（`plugin update` では依存は入らない）」と書く
 - 「現在地」を今の状態に書き換える（フェーズ・main の状態・作業中のブランチ）。前の状態を残さない
 - 「次セッションで最初にやること」を、次に何から手を付けるべきかで書き直す。最初の一手だけ。一覧は `TODO.md` が持つ
 - 決定事項・やったこと・申し送りは書かない。書きたくなったら行き先へ：決定は 2、ハマりと技術判断は 3、やることは 1、やったことは `git log`
