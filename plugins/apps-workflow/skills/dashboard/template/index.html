@@ -5,12 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>開発ダッシュボード</title>
 <style>
-  /* 色の名前。状態色（good / warn / bad）は必ず記号（✓ ! ✕）と文字を添えて使い、色だけで意味を伝えない */
+  /* 色の名前。状態色（warn / bad）は必ず記号（! ✕）を添えて使い、色だけで意味を伝えない */
   :root {
     --bg: #f4f5f7; --card: #ffffff; --line: #e4e7ec; --track: #e9ecf1;
     --ink: #172033; --sub: #566074; --faint: #8b93a3;
     --link: #1f63b8;
-    --good: #1c7c4c; --good-bg: #e2f2e9;
     --warn: #93600a; --warn-bg: #fdf1d6;
     --bad: #b93a2a; --bad-bg: #fbe3dd;
     /* あなた待ちの強調色。失敗の赤（--bad）と見分けがつくよう紫系にする */
@@ -25,7 +24,6 @@
       --bg: #11151d; --card: #181e29; --line: #262e3d; --track: #232b39;
       --ink: #e7ebf3; --sub: #a3acbe; --faint: #737d90;
       --link: #8db6f2;
-      --good: #6fd39a; --good-bg: #16301f;
       --warn: #f0c050; --warn-bg: #36290e;
       --bad: #f28b74; --bad-bg: #3a1d17;
       --you: #b99af0; --you-bg: #2a2140;
@@ -38,140 +36,103 @@
     margin: 0; background: var(--bg); color: var(--ink);
     font: 15px/1.55 -apple-system, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', 'Noto Sans JP', sans-serif;
   }
-  a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  a { color: inherit; text-decoration: none; } a:hover { text-decoration: underline; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 16px; }
 
-  /* 見出し行 */
-  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-bottom: 14px; }
-  header h1 { font-size: 20px; margin: 0; letter-spacing: 0.01em; }
-  header .meta { color: var(--faint); font-size: 13px; }
+  /* 見出し行：名前と、いつのデータか */
+  header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  header h1 { font-size: 20px; margin: 0; }
+  header .meta { color: var(--faint); font-size: 13px; margin-left: auto; white-space: nowrap; }
   header .meta.stale { color: var(--warn); }
-  /* 更新ボタン。配信モード（http）のときだけ押せる。file:// で開いたときは押すと起動方法を出す */
-  #howto { margin-left: auto; }
-  #refresh { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
-  #refresh:hover { border-color: var(--sub); }
-  #refresh:disabled { opacity: 0.6; cursor: wait; }
-  #howto { font-size: 13px; color: var(--link); background: none; border: 0; padding: 4px 2px; cursor: pointer; font-family: inherit; }
-  #hint { width: 100%; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
-  #hint.bad { border-color: var(--bad); background: var(--bad-bg); }
-  #hint p { margin: 0 0 6px; }
-  #hint .cmd { display: flex; gap: 8px; align-items: flex-start; }
-  #hint pre { flex: 1; min-width: 0; margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--tag); font-size: 12px; white-space: pre-wrap; word-break: break-all; user-select: all; }
-  #hint .copy { flex: none; font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
-  #hint .note { margin: 6px 0 0; color: var(--faint); font-size: 12px; }
 
   /* 異常だけを出す帯 */
   .alert { display: flex; gap: 8px; padding: 8px 12px; border-radius: 8px; margin-bottom: 8px; font-size: 14px; }
   .alert.error { background: var(--bad-bg); color: var(--bad); }
   .alert.warn { background: var(--warn-bg); color: var(--warn); }
   .alert span:last-child { color: var(--ink); overflow-wrap: anywhere; }
-  .alert a { color: inherit; text-decoration: underline; }
+  .alert a { text-decoration: underline; }
 
-  /* 数字のタイル */
-  .kpis { display: grid; gap: 10px; grid-template-columns: 1.5fr repeat(4, 1fr); margin-bottom: 14px; }
-  .kpis.four { grid-template-columns: 1.5fr repeat(3, 1fr); } /* 固有の指標のタイルが無いとき */
-  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
-  .kl { font-size: 12px; color: var(--sub); }
-  .kv { font-size: 30px; font-weight: 650; line-height: 1.25; font-variant-numeric: tabular-nums; }
-  .kv small { font-size: 15px; font-weight: 500; margin-left: 2px; color: var(--sub); }
-  .kv.st { font-size: 20px; padding: 6px 0 2px; }
-  .ks { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* あなた待ちは件数の数字だけに色を付ける（枠や背景まで赤くすると、いつも赤くなって目立たせる意味が無くなる） */
-  .kpi.you .kv { color: var(--you); }
-  .bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; margin: 4px 0 6px; }
-  .bar i { display: block; height: 100%; background: var(--l3); border-radius: 3px; }
-
-  /* 状態の記号と色。色は異常にだけ使い、正常（✓）は灰色にする（毎回緑だと黄や赤が埋もれる） */
-  .s-good { color: var(--faint); } .s-bad { color: var(--bad); } .s-warn { color: var(--warn); } .s-run { color: var(--link); } .s-na { color: var(--faint); }
-
-  /* カード */
-  .row { display: grid; gap: 12px; margin-bottom: 12px; }
-  .row.two { grid-template-columns: 3fr 2fr; }
-  .row.three { grid-template-columns: repeat(3, 1fr); }
-  .row.half { grid-template-columns: 1fr 1fr; }
+  /* 並び：狭い幅では 1 列。広い幅では左に「あなた待ち・今のタスク」、右に「変更・固有の指標」 */
+  .grid { display: grid; gap: 12px; margin-top: 12px; }
+  .col { display: grid; gap: 12px; align-content: start; min-width: 0; }
+  @media (min-width: 900px) { .grid { grid-template-columns: 3fr 2fr; } }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
   .card h2 { font-size: 14px; margin: 0 0 6px; color: var(--sub); font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
-  .card h2 .count { font-size: 18px; color: var(--ink); }
-  .card.you-card h2 .count { color: var(--you); }
-  /* あなた待ちは上位だけ出し、残りは「ほか N 件を表示」で開く */
-  ul.list li.extra { display: none; } ul.list.open li.extra { display: flex; }
-  .more-btn { margin-top: 6px; font: inherit; font-size: 13px; color: var(--link); background: none; border: 0; padding: 2px 0; cursor: pointer; }
-  .card h3 { font-size: 12px; color: var(--faint); font-weight: 500; margin: 14px 0 2px; }
+  .card h2 .count { font-size: 22px; color: var(--you); font-variant-numeric: tabular-nums; }
+
+  /* 進捗：数字・帯・残りを 1 行に、その下にフェーズ名 */
+  .progress { display: flex; align-items: center; gap: 12px; }
+  .progress .pct { font-size: 30px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .progress .pct small { font-size: 15px; font-weight: 500; color: var(--sub); margin-left: 1px; }
+  .progress .bar { flex: 1; height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; }
+  .progress .bar i { display: block; height: 100%; background: var(--l3); }
+  .progress .of { font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .phase { font-size: 13px; color: var(--sub); margin-top: 2px; }
+
+  /* 今のタスクは大きく、続く 4 件は小さく薄く。大きさの差で「今」と「この後」を分ける */
+  .now { font-size: 18px; font-weight: 600; line-height: 1.45; margin: 14px 0 6px; }
+  ol.next { margin: 0; padding-left: 1.4em; color: var(--sub); font-size: 14px; }
+  ol.next li { padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* 1 行ずつの一覧。長い題名は 1 行で切り、全文はマウスを載せると出る */
   ul.list { list-style: none; margin: 0; padding: 0; }
-  ul.list li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); min-width: 0; }
+  ul.list li { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); min-width: 0; }
   ul.list li:first-child { border-top: 0; }
+  ul.list li.extra { display: none; } ul.list.open li.extra { display: flex; }
   .txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .src { flex: none; font-size: 12px; color: var(--faint); white-space: nowrap; }
   .tag { flex: none; font-size: 11px; line-height: 20px; padding: 0 8px; border-radius: 4px; background: var(--tag); color: var(--sub); white-space: nowrap; }
-  /* 種類の札は、あなたの判断が要る「判断」だけ色を付ける（確認・作業まで黄や緑にすると、状態の色と紛れる） */
+  /* 種類のタグは、あなたの判断が要る「判断」だけ色を付ける（確認・作業まで色を付けると、状態の色と紛れる） */
   .tag.k-判断 { background: var(--you-bg); color: var(--you); }
   .tag.blocked { background: transparent; border: 1px solid var(--line); color: var(--faint); }
+  .more-btn { margin-top: 4px; font: inherit; font-size: 13px; color: var(--link); background: none; border: 0; padding: 2px 0; cursor: pointer; }
+
+  /* 状態の記号。色は異常にだけ使い、成功（✓）は灰色にする（毎回緑だと黄や赤が埋もれる） */
   .sym { flex: none; width: 1.2em; text-align: center; font-weight: 700; }
+  .s-good, .s-na { color: var(--faint); } .s-bad { color: var(--bad); } .s-warn { color: var(--warn); } .s-run { color: var(--link); }
+
   /* 押して全文に切り替えた題名は、折り返して全部見せる */
   span.txt[title], ol.next li[title], .now[title] { cursor: pointer; }
   .full { white-space: normal !important; display: block !important; -webkit-line-clamp: unset !important; overflow: visible !important; }
 
-  /* 今のタスク */
-  .now { font-size: 19px; font-weight: 600; line-height: 1.4; margin: 2px 0 2px; }
-  .now-sub { font-size: 12px; color: var(--faint); }
-  ol.next { margin: 0; padding-left: 1.4em; color: var(--sub); }
-  ol.next li { padding: 3px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
   /* プロジェクト固有の指標（数字・帯） */
-  .nums { display: flex; gap: 22px; flex-wrap: wrap; }
+  .nums { display: flex; gap: 20px; flex-wrap: wrap; }
   .nums b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1.2; }
   .nums span { font-size: 12px; color: var(--faint); }
-  .levels { display: flex; gap: 2px; height: 12px; border-radius: 3px; overflow: hidden; margin: 12px 0 4px; }
+  .levels { display: flex; gap: 2px; height: 10px; border-radius: 3px; overflow: hidden; margin: 12px 0 4px; }
   .levels i { display: block; min-width: 4px; }
   .levels i[data-l="0"] { background: var(--track); }
   .levels i[data-l="1"] { background: var(--l1); } .levels i[data-l="2"] { background: var(--l2); } .levels i[data-l="3"] { background: var(--l3); }
   .levels i[data-l="4"] { background: var(--l4); } .levels i[data-l="5"] { background: var(--l5); }
   .legend { font-size: 12px; color: var(--faint); }
 
-  /* 折りたたみ（詳しく見たいときだけ開く） */
-  details { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
-  summary { cursor: pointer; padding: 10px 16px; font-size: 14px; color: var(--sub); }
-  summary .src { margin-left: 6px; }
+  /* 折りたたみ（詳しく見たいときだけ開く）。閉じているときは 1 行の帯を横に並べる */
+  .folds { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+  details[open] { flex-basis: 100%; }
+  .card details { border: 0; background: none; margin-top: 8px; }
+  summary { cursor: pointer; padding: 8px 14px; font-size: 13px; color: var(--sub); }
+  .card summary { padding: 0; }
+  summary .src { margin-left: 4px; }
   details > div { padding: 0 16px 12px; font-size: 14px; }
+  .md h3 { font-size: 12px; color: var(--faint); font-weight: 500; margin: 12px 0 2px; }
   .md p { margin: 6px 0; } .md ul { margin: 4px 0; padding-left: 1.3em; }
   .md pre, pre.out { background: var(--tag); padding: 8px 10px; border-radius: 6px; overflow: auto; font-size: 12px; white-space: pre-wrap; }
   code { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 0.9em; background: var(--tag); padding: 0 4px; border-radius: 3px; }
   .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; }
-  .empty { color: var(--faint); font-size: 14px; padding: 6px 0; }
+  .empty { color: var(--faint); font-size: 14px; padding: 4px 0; }
   #err { background: var(--bad-bg); color: var(--bad); padding: 12px 16px; border-radius: 8px; }
 
-  /* 中間の幅：タイル 5 枚を 1 行に詰めると文字が折り返すので、進捗を 1 行目、残り 4 枚を 2 行目に */
-  @media (max-width: 1080px) {
-    .kpis { grid-template-columns: repeat(4, 1fr); }
-    .kpi.wide { grid-column: span 4; }
-    .kpis.four { grid-template-columns: repeat(3, 1fr); }
-    .kpis.four .kpi.wide { grid-column: span 3; }
-  }
-  /* スマートフォン幅：1 列にし、タイルは 2 列（進捗だけ横いっぱい） */
-  @media (max-width: 860px) {
-    .kpis, .kpis.four { grid-template-columns: 1fr 1fr; }
-    .kpi.wide, .kpis.four .kpi.wide { grid-column: span 2; }
-    .row.two, .row.three, .row.half { grid-template-columns: 1fr; }
-  }
   @media (max-width: 480px) {
     .wrap { padding: 12px; }
-    .kv { font-size: 26px; }
-    /* 狭い幅では題名を 2 行まで見せ、付箋 ID は隠して題名に幅を回す */
+    /* 狭い幅では題名を 2 行まで見せる */
     .txt { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-    .src.id { display: none; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1 id="title">開発ダッシュボード</h1><span class="meta" id="meta"></span>
-    <button id="howto" type="button" title="更新ボタンを使うための起動方法">起動方法</button>
-    <button id="refresh" type="button" title="正本（git / CI / TODO 等）を読み直して描き直す">更新</button>
-    <div id="hint" hidden></div>
-  </header>
+  <header><h1 id="title">開発ダッシュボード</h1><span class="meta" id="meta"></span></header>
   <div id="err" hidden></div>
   <main id="main"></main>
 </div>
@@ -180,6 +141,7 @@
 <script src="data.js"></script>
 <script>
 // data.js のデータを描く。状態は持たない（表示するだけ）。
+// この画面は横断タスクボード（ops）の「詳しく見る」の行き先。説明の文・欄の名前・種類の札は出さず、並びと大きさで読ませる。
 // 正本の文章は長いので、一覧では「短い題名」に縮めて出し、全文は title 属性（マウスを載せると出る）に残す。
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -208,15 +170,13 @@ function short(s, { max = 48, colon = true } = {}) {
   return t.length > max ? t.slice(0, max - 1) + '…' : t
 }
 
-/** 先頭の【…】を種類の札として取り出す（「ユーザー確認」→「確認」） */
+/** 先頭の【…】を種類のタグとして取り出す（「ユーザー確認」→「確認」） */
 const bracketTag = (s) => (String(s).match(/^【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '')
 
-/** コミットや CI の題名から種類（feat 等）と短い題名を取り出す */
-const TYPES = { feat: '機能', fix: '修正', docs: '文書', refactor: '整理', chore: '雑務', test: 'テスト' }
+/** コミットや CI の題名から、種類（feat: 等）と PR 番号を落とした短い題名を取り出す */
 function commitTitle(s) {
   const m = String(s ?? '').match(/^(\w+)(\([^)]*\))?!?:\s*(.*)$/)
-  const body = (m ? m[3] : s).replace(/\s*\(#\d+\)\s*$/, '')
-  return { type: m ? TYPES[m[1]] ?? m[1] : '', text: short(body, { max: 40 }) }
+  return short((m ? m[3] : s).replace(/\s*\(#\d+\)\s*$/, ''), { max: 40 })
 }
 
 function ago(iso) {
@@ -227,16 +187,15 @@ function ago(iso) {
   return `${Math.round(m / 1440)}日前`
 }
 
-/** 状態 → 記号と色。色だけに頼らないよう、必ず記号と文字を一緒に出す */
+/** 状態 → 記号。色だけに頼らないよう、必ず記号を一緒に出す */
 const SYM = { good: '✓', bad: '✕', warn: '!', run: '●', na: '–' }
-const st = (kind, label) => `<span class="s-${kind}">${SYM[kind]} ${esc(label)}</span>`
 function runState(r) {
-  if (!r) return ['na', 'なし']
-  if (r.status !== 'completed') return ['run', '実行中']
-  if (r.conclusion === 'success') return ['good', '成功']
-  if (r.conclusion === 'cancelled') return ['warn', '中止']
-  if (r.conclusion === 'skipped' || r.conclusion === 'neutral') return ['na', 'スキップ']
-  return ['bad', '失敗']
+  if (!r) return 'na'
+  if (r.status !== 'completed') return 'run'
+  if (r.conclusion === 'success') return 'good'
+  if (r.conclusion === 'cancelled') return 'warn'
+  if (r.conclusion === 'skipped' || r.conclusion === 'neutral') return 'na'
+  return 'bad'
 }
 
 /** 引き継ぎメモ（折りたたみの中）用の最小限の Markdown */
@@ -257,156 +216,139 @@ function md(text) {
     flushL(); para.push(line)
   }
   flushP(); flushL()
-  return `<div class="md">${out.join('')}</div>`
+  return out.join('')
 }
 
-const li = (inner) => `<li>${inner}</li>`
+const li = (inner, cls = '') => `<li${cls ? ` class="${cls}"` : ''}>${inner}</li>`
 const txt = (shortText, full) => `<span class="txt" title="${esc(full ?? shortText)}">${esc(shortText)}</span>`
-const fold = (summary, body, open = false) => `<details${open ? ' open' : ''}><summary>${summary}</summary><div>${body}</div></details>`
+const fold = (summary, body) => `<details><summary>${summary}</summary><div>${body}</div></details>`
+
+// ★ プロジェクト固有の指標を、下の render() が描く形（update.mjs の readProjectSpecific() が返す形）で返す。
+//   テンプレートの update.mjs を使っていれば d.specific がそのままその形。別の形で持っているリポジトリは、ここで変換する
+function specific(d) {
+  return d.specific ?? null
+}
 
 function render(d) {
-  const t = d.todo, g = d.git, gh = d.github, x = d.specific, h = d.handoff
+  const t = d.todo, g = d.git, gh = d.github, x = specific(d), h = d.handoff
   const name = d.project.name
   document.title = `${name} 開発ダッシュボード`
-  document.getElementById('title').textContent = name
+  document.getElementById('title').innerHTML = d.project.repoUrl ? `<a href="${esc(d.project.repoUrl)}">${esc(name)}</a>` : esc(name)
 
-  // 見出し行：いつのデータか。1 時間より古ければ更新方法を添える
+  // 見出し行：いつのデータか。1 時間より古ければ色で知らせる（いつも出る文字なので、言葉は足さない）
   const ageMin = (Date.now() - Date.parse(d.generatedAt)) / 60000
   const meta = document.getElementById('meta')
   meta.className = 'meta' + (ageMin > 60 ? ' stale' : '')
-  meta.innerHTML =
-    `${esc(g.branch)} · ${ago(d.generatedAt)}に更新` +
-    (ageMin > 60 ? (location.protocol.startsWith('http') ? '（古い。右の「更新」を押す）' : '（古い。右の「起動方法」を見る）') : '') +
-    (d.project.repoUrl ? ` · <a href="${esc(d.project.repoUrl)}">GitHub</a>` : '')
+  meta.textContent = (g.branch && g.branch !== 'main' ? `${g.branch} · ` : '') + ago(d.generatedAt)
 
   const html = []
 
-  // 1. 異常だけ（情報レベルはタイルが示すので出さない）
+  // 1. 異常だけ（CI 失敗・固有の指標の異常・引き継ぎの遅れ・取得失敗）。作業ツリーの汚れは異常ではないので、ここではなく下の折りたたみに出す
   for (const a of d.alerts.filter((a) => a.level === 'error' || a.level === 'warn')) {
     const body = a.href ? `<a href="${esc(a.href)}">${esc(a.text)}</a>` : esc(a.text)
     html.push(`<div class="alert ${a.level}"><span>${a.level === 'error' ? '✕' : '!'}</span><span>${body}</span></div>`)
   }
 
-  // 人間待ち：Beads（ラベル human）と TODO.md「確認待ち」
+  // 2. 人間待ち：Beads（ラベル human）と TODO.md「確認待ち」と、固有の「人が決めるもの」
   const KIND = { decision: '判断', review: '確認', action: '作業' }
   const human = [
     ...d.beads.human.map((b) => {
       const title = b.title.replace(/^\[[^\]]+\]\s*/, '')
       const kind = b.labels.map((l) => KIND[l]).find(Boolean) ?? '確認'
       const pri = Number.isFinite(Number(b.priority)) ? Number(b.priority) : 4
-      return { kind, text: short(title), full: title, src: b.id, blocked: b.blockedBy.length > 0, pri }
+      return { kind, text: short(title), full: `${title}（${b.id}）`, blocked: b.blockedBy.length > 0, pri }
     }),
     ...(t?.askItems ?? []).map((a) => {
       const full = a.text.replace(/\s*完了条件：.*$/, '')
-      return { kind: bracketTag(full) || '確認', text: short(full), full, src: 'TODO', blocked: false, pri: 5 }
+      return { kind: bracketTag(full) || '確認', text: short(full), full: `${full}（TODO.md）`, blocked: false, pri: 5 }
     }),
+    ...(x?.human ?? []).map((it) => ({ kind: it.kind ?? '判断', text: it.text, full: it.full ?? it.text, blocked: false, pri: 2 })),
   ]
-  // プロジェクト固有の「人が決めるもの」（update.mjs の readProjectSpecific が返す human）
-  for (const it of x?.human ?? []) human.push({ kind: it.kind ?? '判断', text: it.text, full: it.full ?? it.text, src: it.src ?? '', blocked: false, pri: 2 })
   // 優先度の高い順に並べる（ハブと同じ）：Beads は priority（0 が最優先）、固有の human は P2 相当、TODO の確認待ちは最後。
   // sort は安定なので、同じ優先度の中では元の並びが保たれる
   human.sort((a, b) => a.pri - b.pri)
-
-  // 2. 数字のタイル
-  const pct = t && t.total.total ? Math.floor((100 * t.total.done) / t.total.total) : 0
-  const mainRun = gh.runs.find((r) => r.branch === 'main')
-  const [ciKind, ciLabel] = gh.available ? runState(mainRun) : ['na', '取得できず']
-  const dirty = g.dirty.length
-  const [wKind, wLabel] = dirty ? ['warn', `未コミット ${dirty}`] : g.ahead ? ['warn', `未push ${g.ahead}`] : ['good', 'クリーン']
-  html.push(`<div class="kpis ${x?.status ? '' : 'four'}">
-    <div class="kpi wide"><div class="kl">進捗（TODO.md）</div>
-      <div class="kv">${pct}<small>%</small></div>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="ks">${esc(short(t?.currentPhase, { colon: false, max: 30 }))} · 残り ${t?.total.open ?? '-'} / ${t?.total.total ?? '-'}</div></div>
-    <div class="kpi ${human.length ? 'you' : ''}"><div class="kl">あなた待ち</div>
-      <div class="kv">${human.length}<small>件</small></div><div class="ks">判断・確認・作業</div></div>
-    <div class="kpi"><div class="kl">CI（main）</div>
-      <div class="kv st">${st(ciKind, ciLabel)}</div><div class="ks">${mainRun ? ago(mainRun.createdAt) : '&nbsp;'}</div></div>
-    ${x?.status ? `<div class="kpi"><div class="kl">${esc(x.status.tile ?? x.title ?? '固有')}</div>
-      <div class="kv st">${st(x.status.kind ?? 'na', x.status.label ?? '')}</div><div class="ks">${esc(x.status.sub ?? '')}&nbsp;</div></div>` : ''}
-    <div class="kpi"><div class="kl">作業ツリー</div>
-      <div class="kv st">${st(wKind, wLabel)}</div><div class="ks">${esc(g.branch)}</div></div>
-  </div>`)
-
-  // 3. あなた待ち ＋ 今のタスク
-  // 上位 TOP_HUMAN 件だけ出し、残りは隠して「ほか N 件を表示」で開く（全部並べると下の CI やコミットが画面の外に押し出される）
+  // 上位 TOP_HUMAN 件だけ出し、残りは「ほか N 件」で開く（全部並べると下の欄が画面の外に押し出される）
   const TOP_HUMAN = 6
-  const humanRows = human.map(
-    (x, i) =>
-      `<li${i >= TOP_HUMAN ? ' class="extra"' : ''}><span class="tag k-${esc(x.kind)}">${esc(x.kind)}</span>${txt(x.text, x.full)}` +
-      (x.blocked ? '<span class="tag blocked">ブロック中</span>' : '') +
-      `<span class="src mono id">${esc(x.src)}</span></li>`,
-  )
-  const moreBtn = human.length > TOP_HUMAN ? `<button type="button" class="more-btn" data-more="human-list">ほか ${human.length - TOP_HUMAN} 件を表示</button>` : ''
+  const humanCard = `<section class="card"><h2>あなた待ち <span class="count">${human.length}</span></h2>
+    ${human.length
+      ? `<ul class="list" id="human-list">${human.map((it, i) => li(
+          `<span class="tag k-${esc(it.kind)}">${esc(it.kind)}</span>${txt(it.text, it.full)}` + (it.blocked ? '<span class="tag blocked">ブロック中</span>' : ''),
+          i >= TOP_HUMAN ? 'extra' : '')).join('')}</ul>` +
+        (human.length > TOP_HUMAN ? `<button type="button" class="more-btn" data-more="human-list">ほか ${human.length - TOP_HUMAN} 件</button>` : '')
+      : '<div class="empty">なし</div>'}</section>`
+
+  // 3. 進捗と今のタスク（TODO.md）。進捗の帯・フェーズ名・今のタスク・この後 4 件を 1 枚に重ねる
+  const pct = t && t.total.total ? Math.floor((100 * t.total.done) / t.total.total) : 0
   const first = t?.openTasks[0]
   const rest = (t?.openTasks ?? []).slice(1, 5)
-  html.push(`<div class="row two">
-    <section class="card ${human.length ? 'you-card' : ''}"><h2>あなた待ち <span class="count">${human.length}</span></h2>
-      ${human.length ? `<ul class="list" id="human-list">${humanRows.join('')}</ul>${moreBtn}` : '<div class="empty">なし</div>'}</section>
-    <section class="card"><h2>今のタスク</h2>
-      ${first ? `<div class="now" title="${esc(first.text)}">${esc(short(first.text, { max: 60 }))}</div>
-      <div class="now-sub">${first.section ? `${esc(short(first.section, { colon: false }))} · ` : ''}TODO.md:${first.line}</div>` : '<div class="empty">未完タスクなし</div>'}
-      ${rest.length ? `<h3>この後</h3><ol class="next">${rest.map((r) => `<li title="${esc(r.text)}">${esc(short(r.text, { max: 40 }))}</li>`).join('')}</ol>` : ''}
-    </section></div>`)
+  const todoCard = `<section class="card">
+    <div class="progress"><span class="pct">${pct}<small>%</small></span><span class="bar"><i style="width:${pct}%"></i></span>
+      <span class="of">${t?.total.done ?? '-'} / ${t?.total.total ?? '-'}</span></div>
+    ${t?.currentPhase ? `<div class="phase">${esc(short(t.currentPhase, { colon: false, max: 40 }))}</div>` : ''}
+    ${first ? `<div class="now" title="${esc(`${first.text}（TODO.md:${first.line}）`)}">${esc(short(first.text, { max: 60 }))}</div>` : ''}
+    ${rest.length ? `<ol class="next" start="2">${rest.map((r) => `<li title="${esc(r.text)}">${esc(short(r.text, { max: 40 }))}</li>`).join('')}</ol>` : ''}
+  </section>`
 
-  // 4. CI ／ 最近のコミット ／ データ
+  // 4. 変更：開いている PR と最近のコミット。main の CI の結果は、そのコミットの行の先頭に記号で出す
+  //    （CI の実行と最近のコミットは同じ変更なので、別の欄にすると同じ題名が 2 回並ぶ）。
+  //    実行の題名はコミットの 1 行目に「 (#PR 番号)」が付いたもの。update.mjs はコミットの題名から PR 番号を外して持つので、外してから突き合わせる
+  const noPr = (s) => String(s ?? '').replace(/\s*\(#\d+\)\s*$/, '')
+  const runOf = new Map()
+  for (const r of gh.runs.filter((r) => r.branch === 'main')) if (!runOf.has(noPr(r.title))) runOf.set(noPr(r.title), r)
+  const failedJobs = (jobs) => (jobs ?? []).filter((j) => j.conclusion === 'failure').map((j) => j.name.replace(/\s*[（(].*$/, ''))
   const prRows = gh.openPrs.map((p) => {
     const kind = p.checks === 'success' ? 'good' : p.checks === 'failure' ? 'bad' : p.checks === 'pending' ? 'run' : 'na'
     const failed = (p.failed ?? []).map((n) => n.replace(/\s*[（(].*$/, ''))
-    const label = `#${p.number} ${commitTitle(p.title).text}` + (failed.length ? ` — 失敗: ${failed.join(', ')}` : '')
-    return li(`<span class="sym s-${kind}">${SYM[kind]}</span>${txt(label, p.title)}<span class="src">PR · ${ago(p.updatedAt)}</span>`)
-  })
-  // 「最近の実行」は main だけを出す。PR の実行は、開いている PR なら上の「開いている PR」に CI の結果が出ており、
-  // マージ済みなら main 側の実行と同じ変更なので重複になる（題名で突き合わせると PR 名の変更で 2 行に割れる。2026-09-27）
-  const runs = gh.runs.filter((r) => r.branch === 'main')
-  const runRows = runs.slice(0, 5).map((r) => {
-    const [kind] = runState(r)
-    const failed = (r.jobs ?? []).filter((j) => j.conclusion === 'failure').map((j) => j.name.replace(/\s*[（(].*$/, ''))
-    const title = commitTitle(r.title).text + (failed.length ? ` — 失敗: ${failed.join(', ')}` : '')
-    return li(`<span class="sym s-${kind}">${SYM[kind]}</span><a class="txt" href="${esc(r.url)}" title="${esc(r.title)}">${esc(title)}</a><span class="src">${ago(r.createdAt)}</span>`)
+    const label = `#${p.number} ${commitTitle(p.title)}` + (failed.length ? ` — ${failed.join(', ')}` : '')
+    return li(`<span class="sym s-${kind}">${SYM[kind]}</span><a class="txt" href="${esc(p.url ?? '')}" title="${esc(p.title)}">${esc(label)}</a><span class="src">${ago(p.updatedAt)}</span>`)
   })
   const commitRows = g.commits.slice(0, 6).map((c) => {
-    const { type, text } = commitTitle(c.subject)
-    const pr = c.pr && d.project.repoUrl ? `<a href="${esc(d.project.repoUrl)}/pull/${c.pr}">#${c.pr}</a> · ` : ''
-    return li(`<span class="tag">${esc(type || '—')}</span>${txt(text, c.subject)}<span class="src">${pr}${ago(c.date)}</span>`)
+    const run = runOf.get(noPr(c.subject))
+    const kind = run ? runState(run) : 'na'
+    const failed = run ? failedJobs(run.jobs) : []
+    const label = commitTitle(c.subject) + (failed.length ? ` — ${failed.join(', ')}` : '')
+    const href = c.pr && d.project.repoUrl ? `${d.project.repoUrl}/pull/${c.pr}` : run?.url
+    const sym = `<span class="sym s-${kind}">${run ? SYM[kind] : ''}</span>`
+    return li(sym + (href ? `<a class="txt" href="${esc(href)}" title="${esc(c.subject)}">${esc(label)}</a>` : txt(label, c.subject)) + `<span class="src">${ago(c.date)}</span>`)
   })
-  // プロジェクト固有のカード（update.mjs の readProjectSpecific が返す形をそのまま描く。null なら出さない）
-  const specificCard = x
-    ? `<section class="card"><h2>${esc(x.title ?? '固有の指標')}</h2>
-      ${x.stats?.length ? `<div class="nums">${x.stats.slice(0, 4).map((s) => `<div><b>${esc(s.value)}</b><span>${esc(s.label)}</span></div>`).join('')}</div>` : ''}
-      ${x.bars?.length ? `<div class="levels">${x.bars.map((b, i) => (b.value ? `<i data-l="${Math.min(i + 1, 5)}" style="flex:${b.value}" title="${esc(b.label)}: ${esc(b.value)}"></i>` : '')).join('')}</div>
-      <div class="legend">${x.bars.map((b) => `${esc(b.label)} ${esc(b.value)}`).join(' · ')}</div>` : ''}
-      ${x.note ? `<div class="legend" style="margin-top:6px">${esc(x.note)}</div>` : ''}
-    </section>`
-    : ''
-  html.push(`<div class="row ${x ? 'three' : 'half'}">
-    <section class="card"><h2>CI</h2>
-      ${gh.available ? '' : `<div class="empty">${esc(gh.error ?? '取得できず')}</div>`}
-      ${prRows.length ? `<h3 style="margin-top:0">開いている PR</h3><ul class="list">${prRows.join('')}</ul><h3>最近の実行（main）</h3>` : ''}
-      <ul class="list">${runRows.join('') || '<li class="empty">なし</li>'}</ul></section>
-    <section class="card"><h2>最近のコミット</h2><ul class="list">${commitRows.join('')}</ul></section>
-    ${specificCard}</div>`)
+  const changeCard = `<section class="card">
+    ${gh.available ? '' : `<div class="empty">${esc(gh.error ?? 'GitHub を取得できず')}</div>`}
+    <ul class="list">${prRows.join('')}${commitRows.join('')}</ul></section>`
 
-  // 5. 詳しく見たいときだけ開く
+  // 5. プロジェクト固有のカード（null なら出さない）。見出しは名前だけ、異常があれば記号を添える。補足の文と出力は畳む
+  let specificCard = ''
+  if (x) {
+    const s = x.status && x.status.kind !== 'good' && x.status.kind !== 'na' ? ` <span class="s-${x.status.kind}">${SYM[x.status.kind] ?? ''} ${esc(x.status.label ?? '')}</span>` : ''
+    specificCard = `<section class="card"><h2${x.note ? ` title="${esc(x.note)}"` : ''}>${esc(short(x.title ?? '', { colon: false }))}${s}</h2>
+      ${x.stats?.length ? `<div class="nums">${x.stats.slice(0, 4).map((s) => `<div><b>${esc(s.value)}</b><span>${esc(s.label)}</span></div>`).join('')}</div>` : ''}
+      ${x.bars?.length ? `<div class="levels">${x.bars.map((b, i) => (b.value ? `<i data-l="${b.level ?? Math.min(i + 1, 5)}" style="flex:${b.value}" title="${esc(b.label)}: ${esc(b.value)}"></i>` : '')).join('')}</div>
+      <div class="legend">${x.bars.map((b) => `${esc(b.label)} ${esc(b.value)}`).join(' · ')}</div>` : ''}
+      ${x.output?.length ? `<details><summary><span class="legend">${x.output.length} 行</span></summary><pre class="out">${esc(x.output.join('\n'))}</pre></details>` : ''}
+    </section>`
+  }
+
+  html.push(`<div class="grid"><div class="col">${humanCard}${todoCard}</div><div class="col">${changeCard}${specificCard}</div></div>`)
+
+  // 6. 詳しく見たいときだけ開く。閉じているときは名前と件数だけの帯
   const more = []
   if (h) {
-    const lag = h.commitsSince ? `${h.commitsSince} コミット前` : '最新'
-    more.push(fold(`引き継ぎメモ（HANDOFF.md）<span class="src">${esc(h.lastCommit?.date ?? '')} · ${lag}</span>`,
-      `<h3>${esc(h.sections.current?.title ?? '現在地')}</h3>${md(h.sections.current?.body)}<h3>${esc(h.sections.next?.title ?? '次にやること')}</h3>${md(h.sections.next?.body)}`))
+    const lag = h.commitsSince ? `${h.commitsSince} コミット前` : ''
+    more.push(fold(`引き継ぎ${lag ? `<span class="src">${lag}</span>` : ''}`,
+      `<div class="md"><h3>${esc(h.sections.current?.title ?? '現在地')}</h3>${md(h.sections.current?.body)}<h3>${esc(h.sections.next?.title ?? '次にやること')}</h3>${md(h.sections.next?.body)}</div>`))
   }
   if (d.decisions.length) {
-    more.push(fold(`最近の合意（logs/decisions.md）<span class="src">${d.decisions.length} 件</span>`,
+    more.push(fold(`合意<span class="src">${d.decisions.length}</span>`,
       `<ul class="list">${d.decisions.map((x) => li(`<span class="src mono">${esc(x.date)}</span>${txt(short(x.title, { max: 60 }), x.title)}`)).join('')}</ul>`))
   }
-  if (x?.output?.length) more.push(fold(`${esc(x.title ?? '固有の指標')}の出力`, `<pre class="out">${esc(x.output.join('\n'))}</pre>`))
-  if (dirty) more.push(fold(`未コミットのファイル<span class="src">${dirty} 件</span>`, `<ul class="list">${g.dirty.map((f) => li(`<span class="src mono">${esc(f.status)}</span><span class="txt mono">${esc(f.path)}</span>`)).join('')}</ul>`))
   if (d.beads.others.length) {
-    more.push(fold(`Claude 側の付箋（Beads）<span class="src">${d.beads.others.length} 件</span>`,
+    more.push(fold(`Claude の付箋<span class="src">${d.beads.others.length}</span>`,
       `<ul class="list">${d.beads.others.map((b) => li(`<span class="src mono">${esc(b.id)}</span>${txt(short(b.title.replace(/^\[[^\]]+\]\s*/, '')))}`)).join('')}</ul>`))
   }
-  more.push(fold(`よく変わったファイル<span class="src">直近 ${g.recentDays} 日</span>`,
-    `<ul class="list">${g.recentFiles.map((f) => li(`<span class="txt mono">${esc(f.file)}</span><span class="src">${f.commits} 回</span>`)).join('')}</ul>`))
-  html.push(more.join(''))
+  if (g.dirty.length || g.ahead) {
+    more.push(fold(`<span class="s-warn">!</span> ${g.dirty.length ? `未コミット<span class="src">${g.dirty.length}</span>` : `未 push<span class="src">${g.ahead}</span>`}`,
+      `<ul class="list">${g.dirty.map((f) => li(`<span class="src mono">${esc(f.status)}</span><span class="txt mono">${esc(f.path)}</span>`)).join('') || li(`<span class="txt">${esc(g.branch)} に未 push のコミット ${g.ahead} 件</span>`)}</ul>`))
+  }
+  html.push(`<div class="folds">${more.join('')}</div>`)
 
   document.getElementById('main').innerHTML = html.join('')
 }
@@ -417,9 +359,9 @@ try {
 } catch (e) {
   const el = document.getElementById('err')
   el.hidden = false
-  el.textContent = `データを読めません（${e.message}）。先に node dashboard/update.mjs を実行してください`
+  el.textContent = `データを読めません（${e.message}）。リポジトリで node dashboard/update.mjs を実行してください`
 }
-// 「ほか N 件を表示」：隠していた行を開く。もう一度押すと閉じる
+// 「ほか N 件」：隠していた行を開く。もう一度押すと閉じる
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-more]')
   if (!btn) return
@@ -443,102 +385,6 @@ document.addEventListener('click', (e) => {
     el.classList.remove('full')
   }
 })
-// ---------- 起動方法の案内と「更新」ボタン ----------
-// ブラウザだけでは git / gh / bd を実行できない。ターミナルで起動した Node のプロセス（配信モード）が
-// 「更新」ボタン（POST /update）を受けて作り直す。止まっているときは、実行場所の cd から始まるコマンドを出す
-const served = location.protocol.startsWith('http')
-
-/** リポジトリの場所。data.js にあればそれを、無ければ file:// のパス（…/dashboard/index.html の 2 つ上）から求める */
-function repoRoot() {
-  const fromData = window.DASHBOARD_DATA?.project?.root
-  if (fromData) return fromData
-  if (location.protocol === 'file:') {
-    // Windows のブラウザで WSL のファイルを開くと file://wsl.localhost/<ディストリ名>/home/... になるので、先頭を落として WSL 側のパスにする
-    const p = decodeURIComponent(location.pathname)
-    const inWsl = /^wsl(\.localhost|\$)$/i.test(location.hostname)
-    return (inWsl ? p.replace(/^\/[^/]+/, '') : p).replace(/\/dashboard\/[^/]*$/, '')
-  }
-  return '<リポジトリの場所>'
-}
-
-/** 起動方法を #hint に出す。reason があれば、なぜ出したかを 1 行添える（失敗時は赤枠） */
-function showHowto(reason) {
-  const hint = document.getElementById('hint')
-  const cmd = `cd ${repoRoot()}\nnode dashboard/update.mjs --serve --open`
-  hint.className = reason ? 'bad' : ''
-  hint.innerHTML =
-    (reason ? `<p><strong>${esc(reason)}</strong></p>` : '') +
-    '<p>ターミナル（VS Code のターミナルで可）で次を実行すると、ブラウザが開きます。以後はその画面の「更新」で最新になります。</p>' +
-    `<div class="cmd"><pre>${esc(cmd)}</pre><button type="button" class="copy">コピー</button></div>` +
-    '<p class="note">実行したターミナルは閉じずに置いておく。ターミナルを閉じる・PC を再起動すると止まるので、そのときはもう一度実行する。</p>'
-  hint.hidden = false
-  hint.querySelector('.copy').addEventListener('click', async (e) => {
-    // e.currentTarget は await の後では null に戻るので、先に取っておく
-    const btn = e.currentTarget
-    try {
-      await navigator.clipboard.writeText(cmd)
-      btn.textContent = 'コピーしました'
-    } catch {
-      // file:// などでクリップボードが使えないときは、コマンドを選択状態にして手でコピーしてもらう
-      getSelection().selectAllChildren(hint.querySelector('pre'))
-      btn.textContent = '選択しました（Ctrl+C）'
-    }
-  })
-}
-
-document.getElementById('howto').addEventListener('click', () => {
-  const hint = document.getElementById('hint')
-  if (hint.hidden) showHowto()
-  else hint.hidden = true
-})
-
-document.getElementById('refresh').addEventListener('click', async (e) => {
-  if (!served) {
-    showHowto('この開き方（ファイルを直接開く）では更新できません')
-    return
-  }
-  const btn = e.currentTarget
-  btn.disabled = true
-  btn.textContent = '更新中…（数秒）'
-  let res
-  try {
-    // 相対パスにしておく。単独起動（/）でも、ハブの下（/<app>/）でも、そのダッシュボードの update に届く
-    res = await fetch('update', { method: 'POST' })
-  } catch (err) {
-    // 応答自体が無い＝起動したプロセスが止まっている
-    btn.disabled = false
-    btn.textContent = '更新'
-    showHowto(`更新できませんでした。起動したプロセスが止まっているようです（${err.message}）`)
-    return
-  }
-  if (res.ok) {
-    location.reload()
-    return
-  }
-  // プロセスは動いているが作り直しに失敗した（500 の本文に理由がある）。起動し直しの案内ではなく理由を出す
-  btn.disabled = false
-  btn.textContent = '更新'
-  const body = await res.json().catch(() => ({}))
-  const hint = document.getElementById('hint')
-  hint.className = 'bad'
-  hint.hidden = false
-  hint.innerHTML = `<p><strong>更新に失敗しました（HTTP ${res.status}）</strong></p><p>${esc(body.error ?? '理由不明')}。起動したターミナルの出力も確認してください。</p>`
-})
-
-// 配信モードのときだけ、60 秒ごとに読み直す。先にプロセスが応答するか確かめ、止まっていたら
-// ブラウザのエラー画面に切り替えず、この画面のまま起動方法を出す
-if (served) {
-  const timer = setInterval(async () => {
-    try {
-      const res = await fetch('data.js', { method: 'HEAD', cache: 'no-store' })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      location.reload()
-    } catch {
-      clearInterval(timer)
-      showHowto('起動したプロセスが止まったため、自動更新を止めました')
-    }
-  }, 60_000)
-}
 </script>
 </body>
 </html>

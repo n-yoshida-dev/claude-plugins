@@ -6,11 +6,12 @@
 // ダッシュボード独自の状態は持たない（ここで作るデータは毎回捨てて作り直す派生物）。
 //
 // 使い方:
-//   node dashboard/update.mjs --serve --open   配信して http://127.0.0.1:8787/ をブラウザで開く。画面の「更新」ボタンで作り直せる（普段はこれ）
-//   node dashboard/update.mjs                  data.js を作り直すだけ → dashboard/index.html をダブルクリックで開く（ボタンは使えない）
+//   node dashboard/update.mjs --serve --open   配信して http://127.0.0.1:8787/ をブラウザで開く。開き直すと作り直す
+//   node dashboard/update.mjs                  data.js を作り直すだけ → dashboard/index.html をダブルクリックで開く
 //   オプション: --port <n> --host <addr>（既定 127.0.0.1。スマホから見るなら --host 0.0.0.0）--quiet
 //
-// ブラウザだけでは git / gh / bd を実行できないので、「更新」ボタンは配信モードのこのプロセス（POST /update）が受けて作り直す。
+// 普段の入口は横断タスクボード（ops の snippets/build_board_dashboards.py が update.mjs を呼んで写す）。
+// ブラウザだけでは git / gh / bd を実行できないので、作り直しは配信モードのこのプロセス（開き直し・ハブからの POST /update）が受ける。
 //
 // 依存: Node 標準ライブラリだけ。git は必須。gh / bd は無ければその項目を「取得できず」にして続ける。
 // プロジェクトごとに書き換えるのは readProjectSpecific()（★ の節）だけ。
@@ -321,12 +322,12 @@ function readBeads(name) {
 //
 // 返す形（全部任意。null を返せばカードもタイルも出ない）:
 //   {
-//     title: 'データ（data/）',                        // カードの見出し
+//     title: 'データ（data/）',                        // カードの見出し（画面では括弧書きを落とす）
 //     status: { kind: 'good'|'bad'|'warn'|'na', label: '成功', tile: 'データ検証', sub: '判定 3 件' },
-//                                                      // 最上段のタイルに出す状態 1 つ。kind は色、label は記号の横の文字
+//                                                      // 状態 1 つ。good と na のときは出さず、warn と bad のときだけ見出しの横に記号と label を出す（tile / sub はハブ向け）
 //     stats: [{ value: 46, label: '項目' }, ...],      // 数字（4 つまで）
-//     bars: [{ label: 'L1', value: 6 }, ...],          // 1 本の帯の内訳（任意。先頭から順に薄い色 → 濃い色。5 段階まで）
-//     note: 'Web アプリ開発の学習ロードマップ',         // 小さな補足 1 行
+//     bars: [{ label: 'L1', value: 6 }, ...],          // 1 本の帯の内訳（任意。先頭から順に薄い色 → 濃い色。5 段階まで。level: 0〜5 で色を指定できる。0 は空の色）
+//     note: 'Web アプリ開発の学習ロードマップ',         // 補足 1 行。画面には出さず、見出しにマウスを載せると出る
 //     output: ['…', '…'],                              // 折りたたみに出す生の出力（失敗時のログなど）
 //     alerts: [{ level: 'error'|'warn', text: '…' }],  // 最上段の注意に足すもの
 //     human: [{ kind: '判断', text: '…', full: '…', src: 'state.json' }], // 「あなた待ち」に足すもの
