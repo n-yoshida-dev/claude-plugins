@@ -320,7 +320,7 @@ function readBeads(name) {
 // プロジェクトごとに違うのは「そのプロジェクトで人が今見る価値のある数字と状態」だけ。ここに 1 関数で書く。
 // index.html は下の形をそのまま描くので、index.html を触らずに済むことが多い。
 //
-// 返す形（全部任意。null を返せばカードもタイルも出ない）:
+// 返す形（全部任意。null を返せばカードが出ない）:
 //   {
 //     title: 'データ（data/）',                        // カードの見出し（画面では括弧書きを落とす）
 //     status: { kind: 'good'|'bad'|'warn'|'na', label: '成功', tile: 'データ検証', sub: '判定 3 件' },
@@ -346,7 +346,7 @@ function readProjectSpecific() {
 function buildAlerts({ git, github, handoff, specific, todo, beads }) {
   const alerts = []
   const mainRun = github.runs.find((r) => r.branch === 'main')
-  // 失敗は赤、中止は黄、成功・スキップは帯を出さない（画面のタイルと同じ区分）
+  // 失敗は赤、中止は黄、成功・スキップは帯を出さない（画面のコミットの行の記号と同じ区分）
   if (mainRun && mainRun.conclusion === 'cancelled') {
     alerts.push({ level: 'warn', text: 'main の CI が中止された', href: mainRun.url })
   } else if (mainRun && mainRun.conclusion && !['success', 'skipped', 'neutral'].includes(mainRun.conclusion)) {
@@ -411,7 +411,7 @@ function writeData(quiet) {
 
 /**
  * 配信モード。/data.js は開くたびに作り直す（連続アクセスは 10 秒だけ結果を使い回す）。
- * 画面の「更新」ボタンは POST /update で、10 秒の使い回しを無視して必ず作り直す
+ * ハブや curl からの POST /update は、10 秒の使い回しを無視して必ず作り直す
  */
 function serve({ host, port, quiet, open }) {
   let cache = { at: 0, body: '' }

@@ -291,10 +291,20 @@ function render(d) {
 
   // 4. 変更：開いている PR と最近のコミット。main の CI の結果は、そのコミットの行の先頭に記号で出す
   //    （CI の実行と最近のコミットは同じ変更なので、別の欄にすると同じ題名が 2 回並ぶ）。
-  //    実行の題名はコミットの 1 行目に「 (#PR 番号)」が付いたもの。update.mjs はコミットの題名から PR 番号を外して持つので、外してから突き合わせる
+  //    実行の題名はコミットの 1 行目に「 (#PR 番号)」が付いたもの。PR 番号があればそれで、無ければ題名で突き合わせる。
+  //    題名だけで突き合わせると、同じ題名のコミットに別のコミットの結果が付く。PR 番号の無い同じ題名のコミットには記号を付けない
   const noPr = (s) => String(s ?? '').replace(/\s*\(#\d+\)\s*$/, '')
-  const runOf = new Map()
-  for (const r of gh.runs.filter((r) => r.branch === 'main')) if (!runOf.has(noPr(r.title))) runOf.set(noPr(r.title), r)
+  const keyOf = (title, pr) => (pr ? `#${pr}` : `t:${noPr(title)}`)
+  const runsOf = new Map()
+  for (const r of gh.runs.filter((r) => r.branch === 'main')) {
+    const k = keyOf(r.title, String(r.title ?? '').match(/\(#(\d+)\)\s*$/)?.[1])
+    runsOf.set(k, [...(runsOf.get(k) ?? []), r])
+  }
+  const shown = g.commits.slice(0, 6)
+  const sameTitle = (c) => !c.pr && shown.filter((o) => !o.pr && noPr(o.subject) === noPr(c.subject)).length > 1
+  // 1 つのコミットで複数のワークフロー（検査と公開など）が動いたときは、いちばん悪い結果を出す（1 つでも失敗なら ✕）
+  const RANK = { bad: 4, warn: 3, run: 2, good: 1, na: 0 }
+  const worstRun = (runs) => runs.reduce((w, r) => (!w || RANK[runState(r)] > RANK[runState(w)] ? r : w), null)
   const failedJobs = (jobs) => (jobs ?? []).filter((j) => j.conclusion === 'failure').map((j) => j.name.replace(/\s*[（(].*$/, ''))
   const prRows = gh.openPrs.map((p) => {
     const kind = p.checks === 'success' ? 'good' : p.checks === 'failure' ? 'bad' : p.checks === 'pending' ? 'run' : 'na'
@@ -302,10 +312,11 @@ function render(d) {
     const label = `#${p.number} ${commitTitle(p.title)}` + (failed.length ? ` — ${failed.join(', ')}` : '')
     return li(`<span class="sym s-${kind}">${SYM[kind]}</span><a class="txt" href="${esc(p.url ?? '')}" title="${esc(p.title)}">${esc(label)}</a><span class="src">${ago(p.updatedAt)}</span>`)
   })
-  const commitRows = g.commits.slice(0, 6).map((c) => {
-    const run = runOf.get(noPr(c.subject))
+  const commitRows = shown.map((c) => {
+    const runs = sameTitle(c) ? [] : runsOf.get(keyOf(c.subject, c.pr)) ?? []
+    const run = worstRun(runs)
     const kind = run ? runState(run) : 'na'
-    const failed = run ? failedJobs(run.jobs) : []
+    const failed = runs.flatMap((r) => failedJobs(r.jobs))
     const label = commitTitle(c.subject) + (failed.length ? ` — ${failed.join(', ')}` : '')
     const href = c.pr && d.project.repoUrl ? `${d.project.repoUrl}/pull/${c.pr}` : run?.url
     const sym = `<span class="sym s-${kind}">${run ? SYM[kind] : ''}</span>`
