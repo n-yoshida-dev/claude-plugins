@@ -28,7 +28,7 @@ const flag = (k, def) => {
 const ROOT = path.resolve(flag('--root', path.join(os.homedir(), 'workspace', 'apps')))
 const PORT = Number(flag('--port', '8790'))
 const HOST = flag('--host', '127.0.0.1')
-// 作り直しは 1 アプリ 7〜8 秒かかる（大半は gh と bd の問い合わせ）。画面を開くたびに待たせないよう、
+// 作り直しは 1 アプリ 7〜8 秒かかる（大半は gh の問い合わせ）。画面を開くたびに待たせないよう、
 // 開いたときは手元の data.js をすぐ返し、STALE_MS より古ければ裏で作り直す。加えて REFRESH_MS ごとに全アプリを裏で作り直す
 const STALE_MS = 60_000
 // --interval 秒ごとに、60 秒より古いアプリを裏で作り直す。既定 300（5 分）、0 で定期の作り直しをしない。数でなければ既定に戻して知らせる
@@ -144,7 +144,7 @@ function dropParens(s) {
 
 /** 一覧用の短い題名（各ダッシュボードの short() と同じ）：記法・括弧書き・注記・2 文目以降を落とし、長ければ「…」で切る */
 function short(s, max = 60) {
-  let t = String(s ?? '').replace(/^【[^】]+】\s*/, '')
+  let t = String(s ?? '').replace(/^(?:\[[^\]]+\]\s*)?(?:W\d+\s*)?【[^】]+】\s*/, '')
   t = t.replace(/([）。])\s*\*\*.*$/, '$1').replace(/`|\*\*/g, '')
   t = dropParens(t).split('。')[0]
   const c = t.indexOf('：')
@@ -155,32 +155,27 @@ function short(s, max = 60) {
 
 /** 全文を見せるときの軽い整形：先頭の【…】・記法・括弧書きだけを落とし、空白を詰める。文や「：」では切らない */
 function plain(s) {
-  return dropParens(String(s ?? '').replace(/^【[^】]+】\s*/, '').replace(/`|\*\*/g, ''))
+  return dropParens(String(s ?? '').replace(/^(?:\[[^\]]+\]\s*)?(?:W\d+\s*)?【[^】]+】\s*/, '').replace(/`|\*\*/g, ''))
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-/** 先頭の【…】を種類の札にする（「ユーザー確認」→「確認」） */
-const bracketTag = (s) => (String(s).match(/^【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '')
-const KIND = { decision: '判断', review: '確認', action: '作業' }
+/** 先頭の【…】（確認待ちの [テーマ名] と W 番号の後ろでもよい）を種類の札にする（「ユーザー確認」「レビュー」→「確認」） */
+const bracketTag = (s) => (String(s).match(/^(?:\[[^\]]+\]\s*)?(?:W\d+\s*)?【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '').replace(/^レビュー$/, '確認')
 
 /**
- * そのアプリの「あなた待ち」（Beads の human、TODO の確認待ち、固有の human）。各ダッシュボードと同じ数え方。
- * 優先度の高い順に並べる：Beads は priority（0 が最優先）、固有の human は 2 相当、TODO の確認待ちは優先度を持たないので最後
+ * そのアプリの「あなた待ち」（TODO の確認待ち、固有の human）。各ダッシュボードと同じ数え方。
+ * 並びは固有の human が先、TODO の確認待ち（上から順）が後
  */
 function humanItems(d) {
   const items = []
-  for (const b of d.beads?.human ?? []) {
-    const full = String(b.title ?? '').replace(/^\[[^\]]+\]\s*/, '')
-    items.push({ kind: (b.labels ?? []).map((l) => KIND[l]).find(Boolean) ?? '確認', text: short(full, 80), full, src: b.id, pri: Number.isFinite(Number(b.priority)) ? Number(b.priority) : 4 })
-  }
   // 固有の human は update.mjs が既に短い文で返す前提（テンプレートの index.html と同じく縮めない）
   for (const h of d.specific?.human ?? []) items.push({ kind: h.kind ?? '判断', text: h.text, full: h.full ?? h.text, src: h.src ?? '', pri: 2 })
   for (const a of d.todo?.askItems ?? []) {
     const full = String(a.text ?? '').replace(/\s*完了条件：.*$/, '')
     items.push({ kind: bracketTag(full) || '確認', text: short(full, 80), full, src: `TODO.md:${a.line}`, pri: 5 })
   }
-  // sort は安定なので、同じ優先度の中では元の並び（Beads の並び・TODO の上から順）が保たれる
+  // sort は安定なので、同じ優先度の中では元の並び（TODO の上から順）が保たれる
   return items.sort((a, b) => a.pri - b.pri)
 }
 
@@ -193,7 +188,7 @@ function summarize(app) {
   if (!d) return { name: app.name, ok: false, error: readError ?? s?.error ?? 'data.js がまだ無い' }
   const t = d.todo
   const pct = t && t.total.total ? Math.floor((100 * t.total.done) / t.total.total) : null
-  const human = (d.beads?.human?.length ?? 0) + (d.todo?.askItems?.length ?? 0) + (d.specific?.human?.length ?? 0)
+  const human = (d.todo?.askItems?.length ?? 0) + (d.specific?.human?.length ?? 0)
   const mainRun = (d.github?.runs ?? []).find((r) => r.branch === 'main')
   const ci = !d.github?.available
     ? ['na', '取得できず']
@@ -311,7 +306,7 @@ function hubPage(apps) {
   a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
   .empty { padding:24px; color:var(--faint); }
   @media (max-width: 860px) {
-    /* スマートフォン幅：状態は 2 列、今のタスクとあなた待ちは縦に並べ、付箋 ID は隠す */
+    /* スマートフォン幅：状態は 2 列、今のタスクとあなた待ちは縦に並べ、出どころ（TODO.md の行番号）は隠す */
     .stats { grid-template-columns:1fr 1fr; } .body { grid-template-columns:1fr; } .src { display:none; }
   }
 </style></head><body><div class="wrap">

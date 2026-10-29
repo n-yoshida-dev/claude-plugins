@@ -5,8 +5,8 @@ description: 画面の見た目を決める・点検する手順。「A 方向�
 
 # 画面の見た目を決める・点検する
 
-方針は ops の `docs/2026-10-10-apps-デザイン改善の進め方.md`（5〜7 節。ユーザーの OK は Beads ops-ard.1）。
-手順の形は photo-prompt-builder で 1 回通した試行（2026-10-10〜11。結果は photo-prompt-builder の `KNOWLEDGE.md` 2026-10-10・2026-10-11 と `logs/decisions.md` 2026-10-11、Beads ops-ard のコメント）で効いた部分だけにしてある。
+方針は ops の `docs/2026-10-10-apps-デザイン改善の進め方.md`（5〜7 節。ユーザーの OK は旧 Beads ops-ard.1。古い `ops-xxx` の番号は ops の `docs/beads-archive/` で引ける）。
+手順の形は photo-prompt-builder で 1 回通した試行（2026-10-10〜11。結果は photo-prompt-builder の `KNOWLEDGE.md` 2026-10-10・2026-10-11 と `logs/decisions.md` 2026-10-11、旧 Beads ops-ard のコメント）で効いた部分だけにしてある。
 共通にするのは進め方で、見た目はアプリごとに決める。各アプリの見た目の決まりは、そのアプリの `DESIGN.md`（Google の DESIGN.md の書式。https://github.com/google-labs-code/design.md ）にある。
 
 ## 段階ごとにやること

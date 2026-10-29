@@ -1,7 +1,7 @@
 {
   "about": "look スキルと scripts/look.mjs が使う外部の道具の版と、撮る画面の大きさ。道具の版は外部が決める値なので、スクリプトに直書きせずここに置く。版を上げるときは、photo-prompt-builder など 1 アプリで shoot・detect・lint を 1 回ずつ通してから checkedAt を直す",
   "checkedAt": "2026-10-11",
-  "decidedIn": "ops の docs/2026-10-10-apps-デザイン改善の進め方.md 4〜6 節（本人の OK は Beads ops-ard.1）と、photo-prompt-builder の試行の結果（KNOWLEDGE.md 2026-10-10・2026-10-11、Beads ops-ard のコメント）",
+  "decidedIn": "ops の docs/2026-10-10-apps-デザイン改善の進め方.md 4〜6 節（本人の OK は 旧 Beads ops-ard.1）と、photo-prompt-builder の試行の結果（KNOWLEDGE.md 2026-10-10・2026-10-11、旧 Beads ops-ard のコメント）",
   "playwright": {
     "version": "1.63.0",
     "dir": "~/.cache/apps-workflow/look",
