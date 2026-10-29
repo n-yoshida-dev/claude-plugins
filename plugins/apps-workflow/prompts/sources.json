@@ -1,6 +1,6 @@
 {
   "about": "外部のリポジトリから写したプロンプトとスキーマの一覧。scripts/test-prompts.sh が、ファイル・ライセンス・冒頭の注記がそろっているかと、改変なし（modified が false）のファイルの本文がここの bodySha256 と同じかを確かめる。.md の本文は冒頭の注記（<!-- から --> と、その次の空行）を除いた部分",
-  "decidedIn": "ops の docs/2026-10-04-マルチモデル協調の採用判断.md「決定」節の問い 1（採点は slot-machine から借りる）・2（0-to-1 の検証プロンプトは写す）・4（Crazytieguy の fork は plan-review.md だけ）。本人の回答は Beads ops-h49.4",
+  "decidedIn": "ops の docs/2026-10-04-マルチモデル協調の採用判断.md「決定」節の問い 1（採点は slot-machine から借りる）・2（0-to-1 の検証プロンプトは写す）・4（Crazytieguy の fork は plan-review.md だけ）。本人の回答は 旧 Beads ops-h49.4",
   "copiedAt": "2026-10-05（slot-machine/writing-3-judge.md だけ 2026-10-06。compete スキルの審査役として Claude が足した。出どころは問い 1 の slot-machine のまま）",
   "files": [
     {

@@ -141,7 +141,7 @@ while IFS= read -r rel; do
   [ -e "$PLUGIN_ROOT/$rel" ] || missing="$missing $rel"
 done < <(grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]+' "$SKILL_DIR/SKILL.md" | sed 's|^\${CLAUDE_PLUGIN_ROOT}/||' | sort -u)
 check "手順書が指すファイルがすべてある${missing:+（無い:$missing）}" test -z "$missing"
-# 2026-10-10 から Claude の判断でも呼べる。その代わり、提案して OK をもらってから始める（Beads ops-h49.10）
+# 2026-10-10 から Claude の判断でも呼べる。その代わり、提案して OK をもらってから始める（旧 Beads ops-h49.10）
 # frontmatter に disable-model-invocation の行が無いか
 no_invocation_limit() { ! grep -q '^disable-model-invocation:' "$1"; }
 # frontmatter の description に指定の文字列があるか

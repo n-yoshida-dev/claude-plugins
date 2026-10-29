@@ -284,7 +284,7 @@ check "形の違う JSON のときは何も書かない" test -z "$(ls -A "$T/un
 
 echo "--- 手順書（SKILL.md） ---"
 
-# 2026-10-10 から Claude の判断でも呼べる。その代わり、提案して OK をもらってから始める（Beads ops-h49.10）
+# 2026-10-10 から Claude の判断でも呼べる。その代わり、提案して OK をもらってから始める（旧 Beads ops-h49.10）
 # frontmatter に disable-model-invocation の行が無いか
 no_invocation_limit() { ! grep -q '^disable-model-invocation:' "$1"; }
 # frontmatter の description に指定の文字列があるか
