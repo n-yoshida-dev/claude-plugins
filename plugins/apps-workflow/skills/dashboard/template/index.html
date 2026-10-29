@@ -160,7 +160,7 @@ function dropParens(s) {
 
 /** 一覧用の短い題名にする：記法・括弧書き・後ろの注記・2 文目以降を落とし、長ければ切る */
 function short(s, { max = 48, colon = true } = {}) {
-  let t = String(s ?? '').replace(/^(?:W\d+\s*)?【[^】]+】\s*/, '')
+  let t = String(s ?? '').replace(/^(?:\[[^\]]+\]\s*)?(?:W\d+\s*)?【[^】]+】\s*/, '')
   t = t.replace(/([）。])\s*\*\*.*$/, '$1') // 後ろに付いた太字の注記
   t = t.replace(/`/g, '').replace(/\*\*/g, '')
   t = dropParens(t).split('。')[0]
@@ -170,8 +170,8 @@ function short(s, { max = 48, colon = true } = {}) {
   return t.length > max ? t.slice(0, max - 1) + '…' : t
 }
 
-/** 先頭の【…】（確認待ちの W 番号の後ろでもよい）を種類のタグとして取り出す（「ユーザー確認」「レビュー」→「確認」） */
-const bracketTag = (s) => (String(s).match(/^(?:W\d+\s*)?【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '').replace(/^レビュー$/, '確認')
+/** 先頭の【…】（確認待ちの [テーマ名] と W 番号の後ろでもよい）を種類のタグとして取り出す（「ユーザー確認」「レビュー」→「確認」） */
+const bracketTag = (s) => (String(s).match(/^(?:\[[^\]]+\]\s*)?(?:W\d+\s*)?【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '').replace(/^レビュー$/, '確認')
 
 /** コミットや CI の題名から、種類（feat: 等）と PR 番号を落とした短い題名を取り出す */
 function commitTitle(s) {

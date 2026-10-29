@@ -144,7 +144,7 @@ function dropParens(s) {
 
 /** 一覧用の短い題名（各ダッシュボードの short() と同じ）：記法・括弧書き・注記・2 文目以降を落とし、長ければ「…」で切る */
 function short(s, max = 60) {
-  let t = String(s ?? '').replace(/^(?:W\d+\s*)?【[^】]+】\s*/, '')
+  let t = String(s ?? '').replace(/^(?:\[[^\]]+\]\s*)?(?:W\d+\s*)?【[^】]+】\s*/, '')
   t = t.replace(/([）。])\s*\*\*.*$/, '$1').replace(/`|\*\*/g, '')
   t = dropParens(t).split('。')[0]
   const c = t.indexOf('：')
@@ -155,13 +155,13 @@ function short(s, max = 60) {
 
 /** 全文を見せるときの軽い整形：先頭の【…】・記法・括弧書きだけを落とし、空白を詰める。文や「：」では切らない */
 function plain(s) {
-  return dropParens(String(s ?? '').replace(/^(?:W\d+\s*)?【[^】]+】\s*/, '').replace(/`|\*\*/g, ''))
+  return dropParens(String(s ?? '').replace(/^(?:\[[^\]]+\]\s*)?(?:W\d+\s*)?【[^】]+】\s*/, '').replace(/`|\*\*/g, ''))
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-/** 先頭の【…】（確認待ちの W 番号の後ろでもよい）を種類の札にする（「ユーザー確認」「レビュー」→「確認」） */
-const bracketTag = (s) => (String(s).match(/^(?:W\d+\s*)?【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '').replace(/^レビュー$/, '確認')
+/** 先頭の【…】（確認待ちの [テーマ名] と W 番号の後ろでもよい）を種類の札にする（「ユーザー確認」「レビュー」→「確認」） */
+const bracketTag = (s) => (String(s).match(/^(?:\[[^\]]+\]\s*)?(?:W\d+\s*)?【([^】]+)】/)?.[1] ?? '').replace(/^ユーザー/, '').replace(/^レビュー$/, '確認')
 
 /**
  * そのアプリの「あなた待ち」（TODO の確認待ち、固有の human）。各ダッシュボードと同じ数え方。
