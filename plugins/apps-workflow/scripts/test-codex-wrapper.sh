@@ -148,8 +148,14 @@ stderr_has() { grep -qF -- "$1" "$T/stderr"; }
 stderr_lacks() { ! grep -qF -- "$1" "$T/stderr"; }
 
 # codex-bin.sh がエラーで終わるか（CODEX_BIN の指定あり／HOME を差し替えて拡張機能を探す、の 2 通り）
+# HOME を差し替えるときは、偽の powershell.exe（何も返さない）を PATH の先頭に置く。
+# Windows では拡張機能が無いと Store 版の Codex を探しに行くので、本物の Codex アプリを見つけないようにするため
 bin_fails_with() { ! CODEX_BIN="$1" bash "$BIN_SH" > /dev/null 2>&1; }
-bin_fails_in_home() { ! env -u CODEX_BIN HOME="$1" bash "$BIN_SH" > /dev/null 2>&1; }
+bin_fails_in_home() { ! env -u CODEX_BIN HOME="$1" PATH="$FAKE_PS:$PATH" FAKE_PS_OUT="$T/ps-none.txt" bash "$BIN_SH" > /dev/null 2>&1; }
+
+# 拡張機能の無い HOME で、偽の powershell.exe に $1 のファイルの中身を返させて codex-bin.sh を呼ぶ（Store 版の探し方を確かめる）
+bin_with_ps() { env -u CODEX_BIN HOME="$T/empty-home" PATH="$FAKE_PS:$PATH" FAKE_PS_OUT="$1" bash "$BIN_SH" 2> "$T/stderr"; }
+bin_ps_fails() { ! bin_with_ps "$1" > /dev/null; }
 
 # codex-models.sh resolve <用途> の終了コードが指定の値か
 resolve_status_is() {
@@ -173,8 +179,19 @@ real_table_ok() {
   ' "$REAL_TABLE" > /dev/null
 }
 
-mkdir -p "$T/tmp" "$T/work"
+mkdir -p "$T/tmp" "$T/work" "$T/empty-home"
 printf 'テスト用の依頼文\n2 行目\n' > "$T/prompt.md"
+
+# 偽の powershell.exe：FAKE_PS_OUT のファイルの中身を、本物と同じく CRLF で返すだけ（Get-AppxPackage は呼ばない）
+FAKE_PS="$T/fake-ps"
+mkdir -p "$FAKE_PS"
+cat > "$FAKE_PS/powershell.exe" <<'EOS'
+#!/usr/bin/env bash
+if [ -f "${FAKE_PS_OUT:-}" ]; then sed 's/$/\r/' "$FAKE_PS_OUT"; fi
+exit 0
+EOS
+chmod +x "$FAKE_PS/powershell.exe"
+: > "$T/ps-none.txt"
 printf '{"type":"object"}\n' > "$T/schema.json"
 
 echo "--- codex-bin.sh ---"
@@ -214,8 +231,34 @@ check "拡張機能の中の最新版を版の順で選ぶ" \
   test "$(env -u CODEX_BIN HOME="$T/home" bash "$BIN_SH")" = "$EXT/openai.chatgpt-26.1000.1-linux-x64/bin/linux-x86_64/codex"
 
 # 拡張機能が無ければエラー
-mkdir -p "$T/empty-home"
 check "codex が見つからなければエラー" bin_fails_in_home "$T/empty-home"
+
+# Store 版の Codex アプリ（Windows の Git Bash だけ）。偽の powershell.exe が「版<タブ>場所」を返す
+APPS="$T/apps"
+for v in 26.930.9 26.1000.1 26.1111.2228.0; do
+  mkdir -p "$APPS/OpenAI.Codex_${v}_x64__fake/app/resources"
+  : > "$APPS/OpenAI.Codex_${v}_x64__fake/app/resources/codex.exe"
+done
+mkdir -p "$APPS/OpenAI.Codex_27.1.0_x64__fake"
+if command -v cygpath >/dev/null 2>&1; then
+  printf '26.1000.1\t%s\n' "$(cygpath -w "$APPS/OpenAI.Codex_26.1000.1_x64__fake")" > "$T/ps-one.txt"
+  check "Store 版：Get-AppxPackage の場所の中の codex.exe を返す" \
+    test "$(bin_with_ps "$T/ps-one.txt")" = "$APPS/OpenAI.Codex_26.1000.1_x64__fake/app/resources/codex.exe"
+  check "Store 版：何も返らなければエラー" bin_ps_fails "$T/ps-none.txt"
+  check "Store 版：エラーの文に CODEX_BIN で場所を渡すやり方を出す" stderr_has "CODEX_BIN に codex.exe の場所"
+  # 文字の順では 26.930.9 が最後になるので、版の順と区別できる
+  { printf '26.930.9\t%s\n' "$(cygpath -w "$APPS/OpenAI.Codex_26.930.9_x64__fake")"
+    printf '26.1111.2228.0\t%s\n' "$(cygpath -w "$APPS/OpenAI.Codex_26.1111.2228.0_x64__fake")"
+    printf '26.1000.1\t%s\n' "$(cygpath -w "$APPS/OpenAI.Codex_26.1000.1_x64__fake")"; } > "$T/ps-many.txt"
+  check "Store 版：複数返れば版のいちばん新しい物" \
+    test "$(bin_with_ps "$T/ps-many.txt")" = "$APPS/OpenAI.Codex_26.1111.2228.0_x64__fake/app/resources/codex.exe"
+  printf '27.1.0\t%s\n' "$(cygpath -w "$APPS/OpenAI.Codex_27.1.0_x64__fake")" > "$T/ps-noexe.txt"
+  check "Store 版：場所に codex.exe が無ければエラー" bin_ps_fails "$T/ps-noexe.txt"
+else
+  # Linux（WSL）では Store 版の探し方に入らない。偽の powershell.exe が場所を返しても使わない
+  printf '26.1000.1\t%s\n' "$APPS/OpenAI.Codex_26.1000.1_x64__fake" > "$T/ps-one.txt"
+  check "Linux では Store 版を探さない（偽の powershell.exe が場所を返してもエラー）" bin_ps_fails "$T/ps-one.txt"
+fi
 
 echo "--- codex-models.sh ---"
 
