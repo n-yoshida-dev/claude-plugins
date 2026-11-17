@@ -15,6 +15,10 @@
 # 出力：知らせるときだけ JSON を stdout に出す。いつも exit 0（ブロックしない）
 set -uo pipefail
 
+# Windows の場所の書き方（C:\…）をそろえる関数 normalize_path（check-edited.sh と共通）
+# shellcheck source=/dev/null
+. "$(dirname "${BASH_SOURCE[0]}")/lib-path.sh" || { echo "look-notice: lib-path.sh を読めません" >&2; exit 0; }
+
 # 編集したファイルが、同じリポジトリの別の作業フォルダ（git worktree）か、プロジェクトの中にあれば、
 # ROOT（その作業フォルダかプロジェクトの一番上）・REL（そこからの相対パス）を決めて成功を返す。
 # どちらでもなければ失敗を返す。check-edited.sh にも同じ関数がある（あちらは別の作業フォルダかの印 WORKTREE も決める。直すときは両方）
@@ -44,7 +48,9 @@ FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null
 SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 [ -n "$FILE" ] || exit 0
 
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+# Windows では C:\… と /c/… のどちらで来ても比べられるよう、ファイルとプロジェクトの場所を同じ形にそろえる（Linux では何もしない）
+FILE=$(normalize_path "$FILE")
+PROJECT_DIR=$(normalize_path "${CLAUDE_PROJECT_DIR:-$(pwd)}")
 locate_in_repo "$FILE" "$PROJECT_DIR" || exit 0
 
 # 画面のファイルでなければ何もしない

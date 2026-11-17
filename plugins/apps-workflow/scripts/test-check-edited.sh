@@ -153,6 +153,25 @@ TOOLS=$(make_root_site '{"format":"prettier --write ."}')
 run_hook "$TOOLS" "$TOOLS/src/a.ts" > "$WORK/out"
 check "直下の package.json に typecheck が無ければ tsc を呼ばない" bash -c "[ ! -s '$WORK/log' ]"
 
+# Windows の書き方の場所（Windows の Claude Code は C:\Users\…\x.tsx の形で渡す。2026-11-18 にこれで検査が黙って外れていた）。
+# cygpath がある所（Windows の Git Bash）でだけ流す（Linux には cygpath が無く、C:\… の形は来ないため）
+if command -v cygpath >/dev/null 2>&1; then
+  WIN=$(make_app '{"lint":"oxlint","typecheck":"tsc -b --noEmit"}')
+  run_hook "$WIN" "$(cygpath -w "$WIN/frontend/src/App.tsx")" > "$WORK/out"
+  check "Windows の書き方（C:\\…）のファイルでも typecheck を呼ぶ" called "npm run --silent typecheck"
+  check "Windows の書き方のファイルには、/ の形に直した場所で lint を当てる" called "npx --no-install oxlint $(cygpath -u "$WIN/frontend/src/App.tsx")"
+  run_hook "$(cygpath -w "$WIN")" "$(cygpath -w "$WIN/frontend/src/App.tsx")" > "$WORK/out"
+  check "プロジェクトの場所も C:\\… の形で来たら typecheck を呼ぶ" called "npm run --silent typecheck"
+  run_hook "$(cygpath -m "$WIN")" "$(cygpath -m "$WIN/frontend/src/App.tsx")" > "$WORK/out"
+  check "C:/… の形（/ 区切り）でも typecheck を呼ぶ" called "npm run --silent typecheck"
+  run_hook "$(cygpath -w "$WIN")" "$(cygpath -w "$WIN/frontend/src/App.tsx")" "typecheck" > "$WORK/out"
+  check "Windows の書き方でも typecheck が失敗したら知らせる" out_has "[typecheck 失敗]"
+  run_hook "$WIN" "$(cygpath -w "$WORK/elsewhere/a.ts")" > "$WORK/out"
+  check "Windows の書き方でもプロジェクトの外の .ts では何も呼ばない" bash -c "[ ! -s '$WORK/log' ]"
+  run_hook "$(cygpath -w "$WIN")" "$(cygpath -w "$WIN/frontend/src/index.css")" > "$WORK/out"
+  check "Windows の書き方でも CSS では何も呼ばない" bash -c "[ ! -s '$WORK/log' ]"
+fi
+
 # 同じリポジトリの別の作業フォルダ（git worktree）
 G=(git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main -c commit.gpgsign=false -c core.hooksPath=/dev/null)
 REPO=$(make_app '{"lint":"oxlint","typecheck":"tsc -b --noEmit"}')
@@ -177,6 +196,12 @@ run_hook "$REPO" "$OTHER/frontend/src/a.ts" > "$WORK/out"
 check "別のリポジトリのファイルでは何も呼ばない" bash -c "[ ! -s '$WORK/log' ]"
 run_hook "$REPO" "$REPO/frontend/src/a.ts" > "$WORK/out"
 check "本体（git の中）のファイルは今までどおり typecheck を呼ぶ" called "npm run --silent typecheck"
+if command -v cygpath >/dev/null 2>&1; then
+  run_hook "$(cygpath -w "$REPO")" "$(cygpath -w "$WORK/wt-deps/frontend/src/a.ts")" > "$WORK/out"
+  check "Windows の書き方でも、別の作業フォルダ（依存あり）で typecheck を呼ぶ" called "npm run --silent typecheck"
+  run_hook "$(cygpath -w "$REPO")" "$(cygpath -w "$OTHER/frontend/src/a.ts")" > "$WORK/out"
+  check "Windows の書き方でも、別のリポジトリのファイルでは何も呼ばない" bash -c "[ ! -s '$WORK/log' ]"
+fi
 
 echo
 if [ "$failures" -gt 0 ]; then

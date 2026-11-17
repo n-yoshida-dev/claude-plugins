@@ -191,6 +191,16 @@ check "実行できない CODEX_BIN はエラー" bin_fails_with "$T/not-exec"
 check "相対パスの CODEX_BIN を絶対パスにして返す" \
   test "$(cd "$T" && CODEX_BIN=fake/codex bash "$BIN_SH")" = "$T/fake/codex"
 
+# Windows の書き方（C:\… と C:/…）の CODEX_BIN も絶対パスとして受け、/c/… の形で返す。
+# cygpath がある所（Windows の Git Bash）でだけ流す（Linux には cygpath が無く、C:\… は絶対パスではないため）
+if command -v cygpath >/dev/null 2>&1; then
+  check "Windows の書き方（C:\\…）の CODEX_BIN を受ける" \
+    test "$(CODEX_BIN="$(cygpath -w "$FAKE/codex")" bash "$BIN_SH")" = "$(cygpath -u "$FAKE/codex")"
+  check "Windows の書き方（C:/…）の CODEX_BIN を受ける" \
+    test "$(cd "$T" && CODEX_BIN="$(cygpath -m "$FAKE/codex")" bash "$BIN_SH")" = "$(cygpath -u "$FAKE/codex")"
+  check "Windows の書き方でも実行できない CODEX_BIN はエラー" bin_fails_with "$(cygpath -w "$T/not-exec")"
+fi
+
 # 拡張機能の版が複数あれば、版の順で最新を選ぶ（文字の順では 26.930.9 が最後になるので、版の順と区別できる）
 EXT="$T/home/.vscode-server/extensions"
 for v in 26.930.9 26.930.41038 26.1000.1; do
@@ -224,7 +234,9 @@ check "用途 review の表のモデルを明示する" has_seq -m fake-astra
 check "用途 review の表の考える深さを明示する" has_seq -c 'model_reasoning_effort="high"'
 check "使ったモデルの出どころを標準エラーに出す" stderr_has "（表の用途 review）"
 check "サンドボックスを -s で明示する" has_seq -s read-only
-check "作業フォルダを -C で渡す" has_seq -C "$T/work"
+# 作業フォルダは codex の -C では渡さず、作業フォルダへ移ってから呼ぶ（Windows の codex.exe に /c/… の形を渡さないため）
+check "作業フォルダは -C で渡さない" lacks -C
+check "呼ばれたときの今いるフォルダが作業フォルダと同じ" test "$(cat "$FAKE/cwd")" = "$T/work"
 check "ユーザー設定を読まない" has_seq --ignore-user-config
 check "ユーザーとプロジェクトの .rules を読まない" has_seq --ignore-rules
 check "memories を切る" has_seq --disable memories
@@ -341,7 +353,8 @@ check "読ませない場所の件数を標準エラーに出す" stderr_has "�
 # -s を付けると権限のプロファイルが捨てられる（2026-10-06 に実機で確かめた）ので、サンドボックスは -c で渡す
 check "読ませない場所を渡すときは -s を付けない" lacks -s
 check "読ませない場所を渡すときはサンドボックスを -c sandbox_mode で渡す" has_seq -c 'sandbox_mode="read-only"'
-check "読ませない場所を渡すときも作業フォルダは -C で渡す" has_seq -C "$T/work"
+check "読ませない場所を渡すときも作業フォルダは -C で渡さない" lacks -C
+check "読ませない場所を渡すときも、呼ばれたときの今いるフォルダが作業フォルダと同じ" test "$(cat "$FAKE/cwd")" = "$T/work"
 
 run --use review --resume fake-thread-1 -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny.txt"
 check "resume でも権限のプロファイルを渡す" has_seq -c 'default_permissions="codex_run_read_limited"'

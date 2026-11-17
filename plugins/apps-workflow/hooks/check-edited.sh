@@ -17,6 +17,10 @@
 # 出力：問題があれば JSON を stdout に出して exit 0
 set -uo pipefail
 
+# Windows の場所の書き方（C:\…）をそろえる関数 normalize_path（look-notice.sh と共通）
+# shellcheck source=/dev/null
+. "$(dirname "${BASH_SOURCE[0]}")/lib-path.sh" || { echo "check-edited: lib-path.sh を読めません" >&2; exit 0; }
+
 # 編集したファイルが、同じリポジトリの別の作業フォルダ（git worktree）か、プロジェクトの中にあれば、
 # ROOT（その作業フォルダかプロジェクトの一番上）・REL（そこからの相対パス）・WORKTREE（別の作業フォルダなら 1）を決めて成功を返す。
 # どちらでもなければ失敗を返す。look-notice.sh にも同じ関数がある（直すときは両方）
@@ -47,10 +51,14 @@ INPUT=$(cat)
 FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 [ -n "$FILE" ] || exit 0
 
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+# Windows では C:\… と /c/… のどちらで来ても比べられるよう、ファイルとプロジェクトの場所を同じ形にそろえる（Linux では何もしない）
+FILE=$(normalize_path "$FILE")
+PROJECT_DIR=$(normalize_path "${CLAUDE_PROJECT_DIR:-$(pwd)}")
 locate_in_repo "$FILE" "$PROJECT_DIR" || exit 0
 # 別の作業フォルダなら、そこをプロジェクトとみなして検査する（パスの書き方を揃え、下の case で当てられるようにする）
 if [ "$WORKTREE" -eq 1 ]; then
+  # Windows の git は作業フォルダの場所を C:/… の形で返すので、上と同じ形にそろえる（Linux では何もしない）
+  ROOT=$(normalize_path "$ROOT")
   PROJECT_DIR="$ROOT"
   FILE="$ROOT/$REL"
 fi

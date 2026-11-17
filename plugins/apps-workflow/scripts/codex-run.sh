@@ -265,10 +265,12 @@ if [ -n "$resume_id" ]; then
 elif [ "${#deny_paths[@]}" -gt 0 ]; then
   # 読ませない場所を渡すときは -s を使わず、設定の上書きで渡す。-s を付けると、渡した権限のプロファイルが捨てられ、
   # 組み込みの「全体を読める」読み取り専用になる（2026-10-06 に実機で確かめた。codex-cli 0.160.0）
-  args+=(-c "sandbox_mode=\"$sandbox\"" -C "$workdir")
+  args+=(-c "sandbox_mode=\"$sandbox\"")
 else
-  args+=(-s "$sandbox" -C "$workdir")
+  args+=(-s "$sandbox")
 fi
+# 作業フォルダは codex の -C では渡さず、下の cd で合わせる（resume と同じ形。codex はいるフォルダを作業フォルダにする）。
+# Windows の Git Bash から codex.exe を呼ぶときに、/c/… と C:\… の書き方の違いに左右されないようにするため（2026-11-18）
 args+=(--ignore-user-config --ignore-rules --disable memories --json -o "$tmp_out")
 [ "$keep_session" -eq 1 ] || args+=(--ephemeral)
 [ "$skip_git_check" -eq 1 ] && args+=(--skip-git-repo-check)

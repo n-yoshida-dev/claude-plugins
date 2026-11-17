@@ -117,6 +117,18 @@ check "本体（git の中）の画面のファイルは今までどおり知ら
 check "別のリポジトリは知らせない" silent "$REPO" "$OTHER/frontend/src/App.tsx" s25
 check "別の作業フォルダでもテストは知らせない" silent "$REPO" "$WORK/repo-wt/frontend/src/App.test.tsx" s26
 
+# Windows の書き方の場所（Windows の Claude Code は C:\Users\…\x.tsx の形で渡す。2026-11-18 にこれで知らせが黙って外れていた）。
+# cygpath がある所（Windows の Git Bash）でだけ流す（Linux には cygpath が無く、C:\… の形は来ないため）
+if command -v cygpath >/dev/null 2>&1; then
+  check "Windows の書き方（C:\\…）のファイルでも知らせる" notified "$APP" "$(cygpath -w "$APP/frontend/src/App.tsx")" s30
+  check "プロジェクトの場所も C:\\… の形で来たら知らせる" notified "$(cygpath -w "$APP")" "$(cygpath -w "$APP/frontend/src/App.tsx")" s31
+  check "C:/… の形（/ 区切り）でも知らせる" notified "$(cygpath -m "$APP")" "$(cygpath -m "$APP/frontend/src/App.tsx")" s32
+  check "Windows の書き方でも、知らせのパスは / 区切りの相対パス" notice_has "（frontend/src/App.tsx）" "$(cygpath -w "$APP")" "$(cygpath -w "$APP/frontend/src/App.tsx")" s33
+  check "Windows の書き方でもテストは知らせない" silent "$(cygpath -w "$APP")" "$(cygpath -w "$APP/frontend/src/App.test.tsx")" s34
+  check "Windows の書き方でもプロジェクトの外は知らせない" silent "$(cygpath -w "$APP")" "$(cygpath -w "$WORK/other/index.css")" s35
+  check "Windows の書き方でも、別の作業フォルダの DESIGN.md を見る" notice_has "DESIGN.md にあります" "$(cygpath -w "$REPO")" "$(cygpath -w "$WORK/repo-wt/frontend/src/App.tsx")" s36
+fi
+
 # --- 表 ---
 CONFIG="$PLUGIN/config/look-tools.json"
 check "表の道具に版がある" jq_true '.playwright.version and .impeccable.version and .designMd.version and .impeccable.license and .designMd.license' "$CONFIG"

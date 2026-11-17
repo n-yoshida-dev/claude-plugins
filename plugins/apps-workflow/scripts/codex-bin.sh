@@ -9,6 +9,7 @@
 #   1. 環境変数 CODEX_BIN（実行できないファイルを指していたら、ほかを探さずにエラーにする。指定の誤りを黙って隠さないため）
 #   2. VS Code 拡張機能（openai.chatgpt）の中の codex。拡張機能の更新で版ごとのフォルダが増えるので、版の順に並べて最新を使う
 #
+# CODEX_BIN は Windows の書き方（C:\… や C:/…）でも受ける。Git Bash の cygpath で /c/… に直してから確かめる
 # PATH の codex は見ない。PATH に codex を置くと、このラッパーを通らない呼び出しが
 # ~/.codex/config.toml の既定のモデル・考える深さで走るため、置かない方針にしている
 # （ops の docs/2026-10-04-マルチモデル協調の採用判断.md §6 論点 7・§7）
@@ -23,6 +24,14 @@ BIN_IN_EXT="bin/linux-x86_64/codex"
 if [ -n "${CODEX_BIN:-}" ]; then
   case "$CODEX_BIN" in
     /*) given="$CODEX_BIN" ;;
+    # Windows の絶対パス（C:\… や C:/…）。cygpath がある所（Git Bash）でだけ /c/… に直す。無い所（Linux）では今までどおり相対パスとして扱う
+    [A-Za-z]:[\\/]*)
+      if command -v cygpath >/dev/null 2>&1; then
+        given=$(cygpath -u -- "$CODEX_BIN")
+      else
+        given="$PWD/$CODEX_BIN"
+      fi
+      ;;
     *) given="$PWD/$CODEX_BIN" ;;
   esac
   if [ -x "$given" ] && [ ! -d "$given" ]; then
