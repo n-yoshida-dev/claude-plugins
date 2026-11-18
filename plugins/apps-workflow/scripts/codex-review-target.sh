@@ -17,7 +17,15 @@
 #   - PRIVATE.md・*.local.*・.env*（生活の事実や秘密の置き場。apps の CLAUDE.md「個人情報の取り扱い」）
 #   - Git の管理から外したファイル（gitignore の対象。コミットしない＝外に出さない前提のファイルのため）
 # シンボリックリンクは行き先で判定する（リンクを通して止める場所の中を送らないため）
+# Windows の Git Bash では、文書・ルート・止める場所を C:/… の形にそろえてから比べ、出力もこの形にする。
+#   C:\… で渡すと realpath は C:/… を、/c/… で渡すと /c/… を返し、git のルートはいつも C:/… なので、
+#   そろえないと ~/workspace/ops（/c/… の形）の中の文書が C:\… の形で渡ったときに止まらなかった（2026-11-18 に確かめた）。Linux では何もしない
 set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../hooks/lib-path.sh" || { echo "codex-review-target.sh: hooks/lib-path.sh を読めません" >&2; exit 2; }
+is_windows_bash || true
 
 # 送ってはいけない理由を標準エラーに出して終了する
 deny() {
@@ -28,6 +36,7 @@ deny() {
 [ $# -eq 1 ] || { echo "使い方: bash codex-review-target.sh <文書のパス>" >&2; exit 2; }
 [ -e "$1" ] || deny "ファイルがありません: $1"
 doc="$(realpath -e -- "$1")" || deny "パスを解決できません: $1"
+doc="$(windows_form "$doc")"
 if [ ! -f "$doc" ] || [ ! -r "$doc" ]; then
   deny "読めるファイルではありません: $doc"
 fi
@@ -44,11 +53,12 @@ esac
 
 root="$(git -C "$(dirname -- "$doc")" rev-parse --show-toplevel 2>/dev/null)" || deny "Git のリポジトリの外です: $doc"
 root="$(realpath -e -- "$root")" || deny "リポジトリのルートを解決できません: $root"
+root="$(windows_form "$root")"
 
 IFS=':' read -r -a extra_roots <<< "${CODEX_DENY_ROOTS:-}"
 for d in "$HOME/workspace/ops" "$HOME/workspace/personal" "${extra_roots[@]}"; do
   [ -n "$d" ] || continue
-  d="$(realpath -m -- "$d")"
+  d="$(windows_form "$(realpath -m -- "$d")")"
   case "$doc/" in
     "$d"/*) deny "送らない場所（$d）の中です: $doc" ;;
   esac

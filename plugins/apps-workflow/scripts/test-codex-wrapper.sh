@@ -461,9 +461,23 @@ check "* と ! の一覧を渡せる" status_is 0
 check "* は . で始まるものも含めて広げる" grep -qF -- "\"$(wf "$FH/.b")\"=\"deny\"" "$FAKE/args"
 check "* で広げたフォルダを読ませない" grep -qF -- "\"$(wf "$FH/a")\"=\"deny\"" "$FAKE/args"
 check "! で除外したものは読ませない場所に入れない" args_lack "\"$(wf "$FH/keep")\"=\"deny\""
-check "外を指すリンクは行き先を読ませない" grep -qF -- "\"$(wf "$T/elsewhere")\"=\"deny\"" "$FAKE/args"
-check "リンクそのものの名前では書かない" args_lack "link-outside"
+if [ -L "$FH/link-outside" ] || ! is_win; then
+  check "外を指すリンクは行き先を読ませない" grep -qF -- "\"$(wf "$T/elsewhere")\"=\"deny\"" "$FAKE/args"
+  check "リンクそのものの名前では書かない" args_lack "link-outside"
+else
+  echo "skip  外を指すリンクは行き先を読ませない（Windows の Git Bash の ln -s はリンクでなく写しを作るので、この形では試せない。下のジャンクションで確かめる）"
+  echo "skip  リンクそのものの名前では書かない（同上）"
+fi
 check "ほかの読ませない場所の中に重なるものは省く" args_lack "\"$(wf "$FH/a/inner")\"=\"deny\""
+if is_win; then
+  # Windows：同じ守りを、Windows で作れるリンク（ジャンクション。フォルダを指す）で確かめる
+  FHJ="$T/fakehome-j"
+  mkdir -p "$FHJ/a" "$T/elsewhere-j"
+  MSYS_NO_PATHCONV=1 cmd.exe /d /c mklink /J "$(cygpath -w "$FHJ/jlink-outside")" "$(cygpath -w "$T/elsewhere-j")" > /dev/null 2>&1
+  HOME="$FHJ" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-glob.txt"
+  check "Windows：外を指すジャンクションは行き先を読ませない" grep -qF -- "\"$(wf "$T/elsewhere-j")\"=\"deny\"" "$FAKE/args"
+  check "Windows：ジャンクションそのものの名前では書かない" args_lack "jlink-outside"
+fi
 
 # 空白を含むパスの * は、空白で割らずに広げる
 mkdir -p "$T/sp ace/x" "$T/sp ace/y"

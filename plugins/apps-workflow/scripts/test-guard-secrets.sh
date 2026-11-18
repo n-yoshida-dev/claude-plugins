@@ -65,8 +65,28 @@ stage "メモ/.env.example"
 check "雛形の .env.example は通す" hook_exits 0 "git commit -m x"
 stage $'docs\nsecrets/readme.txt'
 check "名前に改行を含むパスを 2 件に割らない（secrets/ の下ではない）" hook_exits 0 "git commit -m x"
-stage $'メ\nモ/.env'
-check "名前に改行を含むフォルダの .env も止める" hook_exits 2 "git commit -m x"
+case "$(uname -s)" in
+  MINGW*|MSYS*)
+    # Windows の名前には改行を使えず、Git Bash は改行を別の文字（U+F00A）に置き換えてフォルダを作る。
+    # そのため stage の git add は「当てはまるファイルが無い」で何もステージせず、この形では試せない
+    echo "skip  名前に改行を含むフォルダの .env も止める（Windows の名前には改行を使えないので、この形では試せない。下の似た名前で確かめる）"
+    # 代わりに同じ守りを Windows で確かめる：改行の代わりの文字が入った似た名前のフォルダの .env を、
+    # 名前を書かずに git add -A で入れても止まるか（2026-11-18 に手で確かめた形）
+    REPO_MAIN="$REPO"
+    REPO="$WORK/repo-win"
+    git init -q "$REPO"
+    mkdir -p "$REPO/$(printf 'メ\nモ')"
+    echo x > "$REPO/$(printf 'メ\nモ')/.env"
+    git -C "$REPO" add -A
+    check "Windows：改行の代わりの文字が入った似た名前のフォルダの .env を、git add -A で入れても止める" hook_exits 2 "git commit -m x"
+    check "Windows：その .env はステージに入っている（試験が空振りしていない）" test "$(git -C "$REPO" diff --cached --name-only | wc -l)" -eq 1
+    REPO="$REPO_MAIN"
+    ;;
+  *)
+    stage $'メ\nモ/.env'
+    check "名前に改行を含むフォルダの .env も止める" hook_exits 2 "git commit -m x"
+    ;;
+esac
 stage "メモ/.env"
 check "git 以外のコマンドは検査しない" hook_exits 0 "ls -la"
 

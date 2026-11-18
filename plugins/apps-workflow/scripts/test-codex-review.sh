@@ -54,8 +54,25 @@ fill_err_has() { grep -qF -- "$1" "$T/fill.err"; }
 target_status_is() { [ "$(cat "$T/target.status")" = "$1" ]; }
 # 直前の target の標準エラーに、指定の文字列があるか
 target_err_has() { grep -qF -- "$1" "$T/target.err"; }
-# 直前の target の出力が「文書<TAB>ルート」か
-target_out_is() { [ "$(cat "$T/target.out")" = "$(printf '%s\t%s' "$1" "$2")" ]; }
+# 直前の target の出力が「文書<TAB>ルート」か（場所は wf の形で比べる）
+target_out_is() { [ "$(cat "$T/target.out")" = "$(printf '%s\t%s' "$(wf "$1")" "$(wf "$2")")" ]; }
+# Windows の Git Bash（uname -s が MINGW*・MSYS*）か
+is_win() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+# codex-review-target.sh が出す場所の形。Windows では C:/…（cygpath -m -l）、Linux では渡した場所そのまま
+wf() {
+  if is_win; then
+    cygpath -m -l -- "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+# 飛ばした試験を、理由つきで 1 行出す（ok にも NG にも数えない）
+skip() { echo "skip  $1（$2）"; }
 
 echo "--- fill-prompt.sh ---"
 
@@ -229,8 +246,27 @@ target "$D/docs/plan.md"
 check "送らない場所の中は終了コード 2" target_status_is 2
 # 送らない場所の中を指すシンボリックリンクも止める
 ln -s "$D/docs/plan.md" "$R/docs/link.md"
-target "$R/docs/link.md"
-check "送らない場所を指すリンクは終了コード 2" target_status_is 2
+if [ -L "$R/docs/link.md" ] || ! is_win; then
+  target "$R/docs/link.md"
+  check "送らない場所を指すリンクは終了コード 2" target_status_is 2
+else
+  skip "送らない場所を指すリンクは終了コード 2" "Windows の Git Bash の ln -s はリンクでなく写しを作るので、この形では試せない。下のジャンクションで確かめる"
+fi
+if is_win; then
+  # Windows：同じ守りを、Windows で作れるリンク（ジャンクション。フォルダを指す）で確かめる
+  MSYS_NO_PATHCONV=1 cmd.exe /d /c mklink /J "$(cygpath -w "$R/jdocs")" "$(cygpath -w "$D/docs")" > /dev/null 2>&1
+  target "$R/jdocs/plan.md"
+  check "Windows：送らない場所を指すジャンクションの中の文書は終了コード 2" target_status_is 2
+  # Windows：送らない場所の中の文書を C:\… や /c/… の形で渡しても止める（C:\… の形だと止まらなかった。2026-11-18）
+  target "$(cygpath -w "$D/docs/plan.md")"
+  check "Windows：送らない場所の中の文書を C:\\… の形で渡しても終了コード 2" target_status_is 2
+  wd="$(cygpath -m "$D/docs/plan.md")"
+  target "/$(printf '%s' "${wd:0:1}" | tr '[:upper:]' '[:lower:]')/${wd:3}"
+  check "Windows：送らない場所の中の文書を /c/… の形で渡しても終了コード 2" target_status_is 2
+  # Windows：C:\… の形で渡しても、文書とルートを同じ C:/… の形で出す（書き出しで「リポジトリの外」と誤らないため）
+  target "$(cygpath -w "$R/docs/plan.md")"
+  check "Windows：C:\\… の形で渡しても C:/… の形で文書とルートを出す" target_out_is "$R/docs/plan.md" "$R"
+fi
 
 # ルートに data/ があるリポジトリ
 R2="$T/repo-data"

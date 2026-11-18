@@ -14,7 +14,14 @@
 #   リポジトリそのものを作業フォルダにすると、gitignore の PRIVATE.md などの実データが OpenAI に渡りうる（2026-10-05、PR #26 の受け入れレビュー）
 # 書き出しだけでは足りない：Codex の読み取り専用は作業フォルダの外もどこでも読める（2026-10-05 に codex sandbox で確かめた）。
 #   外を読ませないのは、codex-run.sh --deny-read-list と config/codex-review-deny-read.txt の役目
+# Windows の Git Bash では、文書とルートを C:/… の形にそろえてから比べる（/c/… と C:/… が混ざると「リポジトリの外」と誤って止まるため。
+#   codex-review-target.sh と同じ。2026-11-18）。Linux では何もしない
 set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../hooks/lib-path.sh" || { echo "codex-review-export.sh: hooks/lib-path.sh を読めません" >&2; exit 2; }
+is_windows_bash || true
 
 # 指定の誤りを標準エラーに出して終了する
 usage_error() {
@@ -25,6 +32,8 @@ usage_error() {
 [ $# -eq 3 ] || usage_error "使い方: bash codex-review-export.sh <文書のパス> <リポジトリのルート> <書き出し先>"
 doc="$(realpath -e -- "$1")" || usage_error "文書のパスを解決できません: $1"
 root="$(realpath -e -- "$2")" || usage_error "リポジトリのルートを解決できません: $2"
+doc="$(windows_form "$doc")"
+root="$(windows_form "$root")"
 out="$(realpath -m -- "$3")"
 case "$doc" in
   "$root"/*) ;;

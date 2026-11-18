@@ -31,6 +31,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 共通の「読ませない場所」の一覧は、OS に合う物を codex-deny-list.sh が選ぶ（Windows は codex-review-deny-read.windows.txt）。
 # 選べなければ空になり、下の確かめで止まる
 BASE_DENY="$(bash "$SCRIPT_DIR/codex-deny-list.sh")"
+# Windows の Git Bash では、ルート・止める場所・材料・作業場所を C:/… の形にそろえてから比べる。
+# git が返すルートはいつも C:/… で、realpath は渡した形（/c/…・/tmp/…・C:/…）のまま返すので、そろえないと
+# 「Git のリポジトリのルートではありません」で必ず止まり、止める場所の確かめも外れる（2026-11-18）。Linux では何もしない。
+# 作り手に渡す一覧に書く RUN・COORD の場所は、渡された形のまま書く（codex-run.sh が Codex に渡す前にそろえる）
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../hooks/lib-path.sh" || { echo "compete-setup.sh: hooks/lib-path.sh を読めません" >&2; exit 2; }
+is_windows_bash || true
 
 # 指定の誤りを標準エラーに出して終了する
 usage_error() {
@@ -70,11 +77,13 @@ if [ ! -f "$parts" ] || [ ! -s "$parts" ]; then usage_error "節の一覧が無�
 [ -f "$BASE_DENY" ] || usage_error "共通の「読ませない場所」の一覧がありません: $BASE_DENY"
 
 root="$(realpath -e -- "$root")" || usage_error "リポジトリのルートを解決できません: $root"
-[ "$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" = "$root" ] || usage_error "Git のリポジトリのルートではありません: $root"
+root="$(windows_form "$root")"
+toplevel="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$toplevel" ] || [ "$(windows_form "$toplevel")" != "$root" ]; then usage_error "Git のリポジトリのルートではありません: $root"; fi
 IFS=':' read -r -a extra_roots <<< "${CODEX_DENY_ROOTS:-}"
 for d in "$HOME/workspace/ops" "$HOME/workspace/personal" "${extra_roots[@]}"; do
   [ -n "$d" ] || continue
-  d="$(realpath -m -- "$d")"
+  d="$(windows_form "$(realpath -m -- "$d")")"
   case "$root/" in "$d"/*) usage_error "コンペをしない場所（$d）の中です: $root" ;; esac
 done
 [ ! -e "$root/data" ] || usage_error "リポジトリのルートに data/ があります: $root"
@@ -92,8 +101,10 @@ run="$(realpath -m -- "$run")"
 coord="$(realpath -m -- "$coord")"
 if [ -e "$run" ] && [ -n "$(ls -A -- "$run" 2>/dev/null)" ]; then usage_error "作業場所が空ではありません: $run"; fi
 if [ -e "$coord/workers.tsv" ]; then usage_error "調整役のフォルダに前の回の workers.tsv があります: $coord"; fi
-case "$run/" in "$coord"/*) usage_error "作業場所を調整役のフォルダの中に置かないでください（作り手が対応表に届くため）: $run" ;; esac
-case "$coord/" in "$run"/*) usage_error "調整役のフォルダを作業場所の中に置かないでください（作り手が対応表に届くため）: $coord" ;; esac
+run_cmp="$(windows_form "$run")"
+coord_cmp="$(windows_form "$coord")"
+case "$run_cmp/" in "$coord_cmp"/*) usage_error "作業場所を調整役のフォルダの中に置かないでください（作り手が対応表に届くため）: $run" ;; esac
+case "$coord_cmp/" in "$run_cmp"/*) usage_error "調整役のフォルダを作業場所の中に置かないでください（作り手が対応表に届くため）: $coord" ;; esac
 
 # 材料を確かめる（作業場所を作る前に、すべて確かめる）
 declare -A seen_name=()
@@ -101,6 +112,7 @@ material_paths=()
 for f in "${materials[@]}"; do
   if [ ! -f "$f" ] || [ ! -r "$f" ]; then usage_error "材料が読めません: $f"; fi
   p="$(realpath -e -- "$f")" || usage_error "材料のパスを解決できません: $f"
+  p="$(windows_form "$p")"
   name="$(basename -- "$p")"
   case "$name" in
     PRIVATE.md|*.local.*|.env*) usage_error "非公開の置き場のファイルは材料にできません: $name" ;;
