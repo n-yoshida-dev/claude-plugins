@@ -162,7 +162,9 @@ codex_runs_are_guarded() {
   # shellcheck disable=SC2016
   with_tree="$(grep -cF -- '-C "$TREE"' <<< "$lines")"
   # shellcheck disable=SC2016
-  with_deny="$(grep -cF -- '--deny-read-list "${CLAUDE_PLUGIN_ROOT}/config/codex-review-deny-read.txt"' <<< "$lines")"
+  # 一覧は OS に合う物を codex-deny-list.sh が選ぶ（2026-11-18。Windows 版の一覧を足した）
+  # shellcheck disable=SC2016
+  with_deny="$(grep -cF -- '--deny-read-list "$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-deny-list.sh")"' <<< "$lines")"
   [ "$with_tree" -eq "$total" ] && [ "$with_deny" -eq "$total" ]
 }
 check "手順書は Codex に書き出しだけを渡し、読ませない場所の一覧を必ず付ける" codex_runs_are_guarded

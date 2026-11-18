@@ -32,6 +32,14 @@
 #                        先頭の ! は除外。# から後ろと空行は読まない。リンクは行き先に置き換え、ほかの場所の中に重なるものは省く。
 #                        作業フォルダ（-C）や codex の実行ファイルが一覧の場所の中にあるときは止める（親の deny が勝ち、読めなくなるため）。
 #                        このときサンドボックスは -s ではなく -c sandbox_mode で渡す（-s を付けると権限のプロファイルが捨てられるため）
+#                        どの OS の一覧を渡すかは scripts/codex-deny-list.sh が選ぶ（Windows は config/codex-review-deny-read.windows.txt）
+#
+# Windows の Git Bash（uname -s が MINGW*・MSYS*）のときだけ、次の 2 つを足す。Linux（WSL）では引数を 1 文字も変えない（2026-11-18）
+#   - 読ませない場所を、Codex に渡す直前に C:/… の形にそろえる（cygpath -m）。/c/… の形のままだと Codex が「絶対パスでない」と止まる。
+#     一覧には C:/… や C:\… の形も書ける。作業フォルダ・codex の実行ファイルとの重なりも、同じ形にそろえてから比べる
+#   - 囲いの種類を -c windows.sandbox="mxc" で渡す（--ignore-user-config で config.toml を読まないので、渡さないと種類が決まらない）。
+#     elevated は使わない。読ませない場所に「読めない」の権限を書き残し、動かすたびにホームの下へ「読める」の権限を足すため
+#     （ops の docs/環境/2026-11-16-Claude環境の再構築/段階5a-Codexの囲い-結果.md）
 #
 # 必ず付けるもの：-m・-c model_reasoning_effort・サンドボックス・--ignore-user-config・--ignore-rules・--disable memories・--json。
 #   --ignore-user-config で ~/.codex/config.toml（Codex 側のプラグインや既定のモデル）を読まない。認証は保たれる
@@ -51,6 +59,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# is_windows_bash・windows_form（Windows の Git Bash でだけ場所の形をそろえる。Linux では何もしない）
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../hooks/lib-path.sh" || { echo "codex-run.sh: hooks/lib-path.sh を読めません" >&2; exit 2; }
+# OS の答えを先に 1 回だけ調べて覚えておく（下の $( ) の中で何度も調べ直さないため）
+is_windows_bash || true
 
 # 使い方を標準エラーに出して終了する
 usage_error() {
@@ -100,7 +113,8 @@ while [ $# -gt 0 ]; do
     --events) need_value "$1" $#; events_file="$2"; shift 2 ;;
     --resume) need_value "$1" $#; resume_id="$2"; shift 2 ;;
     --keep-session) keep_session=1; shift ;;
-    --deny-read-list) need_value "$1" $#; deny_list_file="$2"; shift 2 ;;
+    # 値が空なら止める（一覧を選ぶ codex-deny-list.sh が何も出さなかったときに、一覧なしで黙って呼ばないため）
+    --deny-read-list) need_value "$1" $#; [ -n "$2" ] || usage_error "--deny-read-list の値が空です"; deny_list_file="$2"; shift 2 ;;
     --skip-git-repo-check) skip_git_check=1; shift ;;
     -i) need_value "$1" $#; images+=("$2"); shift 2 ;;
     # 冒頭のコメント（使い方）だけを出す
@@ -163,6 +177,8 @@ fi
 workdir="$(to_abs "${workdir:-$PWD}")"
 [ -d "$workdir" ] || usage_error "-C のフォルダがありません: $workdir"
 workdir="$(realpath -e -- "$workdir")" || usage_error "-C のフォルダを解決できません: $workdir"
+# 読ませない場所と比べるときの形（Windows では C:/…。Linux では workdir と同じ）。移る先（cd）には workdir をそのまま使う
+workdir_cmp="$(windows_form "$workdir")"
 
 # 読ませない場所の一覧から、権限のプロファイルの filesystem の表（TOML のインライン表）を組み立てる
 deny_paths=()
@@ -185,11 +201,15 @@ if [ -n "$deny_list_file" ]; then
     # 先頭の ~ をホームにする（一覧の文字そのものの ~ なので、シェルの展開ではなく文字として比べる）
     case "$entry" in \~|\~/*) entry="$HOME${entry:1}" ;; esac
     entry="${entry//\{uid\}/$uid}"
+    # Windows では C:/… や C:\… の形も受け、/c/… の形にしてから下の確かめ・* の広げ・リンクの解決に回す（Codex に渡す前に C:/… に戻す）
+    if is_windows_bash; then
+      case "$entry" in [A-Za-z]:[\\/]*) entry="$(cygpath -u -- "$entry")" ;; esac
+    fi
     case "$entry" in /*) ;; *) usage_error "--deny-read-list の場所は絶対パスで書いてください: $raw" ;; esac
     # TOML の文字列に埋め込むので、引用符・バックスラッシュ・制御文字を入れない
     [[ "$entry" =~ ^[^\"\\[:cntrl:]]+$ ]] || usage_error "--deny-read-list の場所に使えない文字があります: $raw"
     if [ "$exclude" -eq 1 ]; then
-      excludes+=("$(realpath -m -- "$entry")")
+      excludes+=("$(windows_form "$(realpath -m -- "$entry")")")
     elif [[ "$entry" == *"*"* ]]; then
       # * はその場所にあるもの（. で始まるものも含む）すべてに広げる。空白を含むパスを割らないよう IFS を空にする
       old_ifs="$IFS"; IFS=''
@@ -203,10 +223,21 @@ if [ -n "$deny_list_file" ]; then
   done < "$deny_list_file"
   shopt -u dotglob nullglob
 
-  # リンクは行き先に置き換える（bwrap はリンクの上に「読めない」を重ねられないため）。除外したものは外す
+  # リンクは行き先に置き換える（bwrap はリンクの上に「読めない」を重ねられないため）。除外したものは外す。
+  # Windows では、ここで C:/… の形にそろえる（Codex に渡す形。重なりと作業フォルダの確かめもこの形で比べる）。
+  # Windows ではコマンドを 1 つ起こすのが遅く（1 回 50 ミリ秒ほど）、ホームの下を広げると 100 件を超えるので、
+  # realpath と cygpath は全部まとめて 1 回ずつ呼ぶ（Windows の名前には改行が無いので、1 行 1 件で受け取れる）
+  raw=()
+  if is_windows_bash; then
+    if [ "${#candidates[@]}" -gt 0 ]; then
+      mapfile -t raw < <(realpath -m -- "${candidates[@]}")
+      mapfile -t raw < <(cygpath -m -l -- "${raw[@]}")
+    fi
+  else
+    for c in "${candidates[@]}"; do raw+=("$(realpath -m -- "$c")"); done
+  fi
   resolved=()
-  for c in "${candidates[@]}"; do
-    r="$(realpath -m -- "$c")"
+  for r in "${raw[@]}"; do
     skip=0
     for x in "${excludes[@]}"; do [ "$r" != "$x" ] || skip=1; done
     [ "$skip" -eq 1 ] || resolved+=("$r")
@@ -228,7 +259,7 @@ if [ -n "$deny_list_file" ]; then
   done
 
   for d in "${deny_paths[@]}"; do
-    case "$workdir/" in
+    case "$workdir_cmp/" in
       "$d"/*) usage_error "作業フォルダ（-C）が、読ませない場所（$d）の中にあります。作業フォルダはその外に作ってください" ;;
     esac
   done
@@ -237,7 +268,7 @@ fi
 bin="$(bash "$SCRIPT_DIR/codex-bin.sh")" || exit 2
 # Codex 本体が読ませない場所の中にあると、サンドボックスの中で Codex が自分を起動できない（2026-10-05 に確かめた）
 for d in "${deny_paths[@]}"; do
-  case "$(realpath -m -- "$bin")" in
+  case "$(windows_form "$(realpath -m -- "$bin")")" in
     "$d"/*) usage_error "codex の実行ファイル（$bin）が読ませない場所（$d）の中にあります。一覧に ! で除外を足してください" ;;
   esac
 done
@@ -252,6 +283,12 @@ tmp_out="$tmp_dir/last-message.md"
 args=(exec)
 [ -n "$resume_id" ] && args+=(resume)
 args+=(-m "$model" -c "model_reasoning_effort=\"$effort\"")
+# Windows だけ、囲いの種類を mxc に決めて渡す（冒頭の説明。Linux では足さない）
+win_sandbox=""
+if is_windows_bash; then
+  win_sandbox="mxc"
+  args+=(-c "windows.sandbox=\"$win_sandbox\"")
+fi
 if [ "${#deny_paths[@]}" -gt 0 ]; then
   # 全体は読み取りだけ（":root"="read"）にし、一覧の場所を読めなくする。exec でも resume でも -c で渡せる
   fs_table="{\":root\"=\"read\""
@@ -282,7 +319,7 @@ for img in "${images[@]}"; do args+=(-i "$img"); done
 # 最後の「-」は「依頼文を標準入力から読む」の意味
 args+=(-)
 
-echo "codex-run.sh: $bin / model=$model / effort=$effort（$model_source）/ sandbox=$sandbox${resume_id:+ / resume=$resume_id}${deny_list_file:+ / 読ませない場所 ${#deny_paths[@]} 件}" >&2
+echo "codex-run.sh: $bin / model=$model / effort=$effort（$model_source）/ sandbox=$sandbox${win_sandbox:+ / windows.sandbox=$win_sandbox}${resume_id:+ / resume=$resume_id}${deny_list_file:+ / 読ませない場所 ${#deny_paths[@]} 件}" >&2
 
 # 表と Codex の手元のモデル一覧を照らす。知らせるだけで、呼び出しは止めない
 notice_count=0

@@ -42,7 +42,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-review-target.sh" "<文書のパス>"
 
 続けて、Codex に読ませる作業フォルダを、Git で管理しているファイルだけで作る。**Codex の作業フォルダにリポジトリそのものを渡さない。**
 Codex は読み取り専用でも、作業フォルダの中も外もどこでも読める（2026-10-05 に `codex sandbox -P :read-only` で確かめた）。
-そこで、作業フォルダは書き出しにし、さらに 2 で読ませない場所の一覧（`config/codex-review-deny-read.txt`。ホームの直下・Windows のドライブ・Claude の作業用フォルダ）を渡して、そこを読めなくする。
+そこで、作業フォルダは書き出しにし、さらに 2 で読ませない場所の一覧（ホームの直下・Claude の作業用フォルダなど。OS に合う物を `scripts/codex-deny-list.sh` が選ぶ。WSL は `config/codex-review-deny-read.txt`、Windows は `config/codex-review-deny-read.windows.txt`）を渡して、そこを読めなくする。
 
 ```bash
 TREE="$(mktemp -d /tmp/codex-review.XXXXXX)"
@@ -65,11 +65,12 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/promp
 Codex を呼ぶ。**Bash のバックグラウンド実行**で流し、完了の通知を待つ。通知が届く前に結果を書いたり、終わったと言ったりしない。
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f "$W/brief.md" -o "$W/review.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events.jsonl" --deny-read-list "${CLAUDE_PLUGIN_ROOT}/config/codex-review-deny-read.txt"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review -s read-only -f "$W/brief.md" -o "$W/review.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events.jsonl" --deny-read-list "$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-deny-list.sh")"
 ```
 
 - `-C` は書き出し（`TREE`）。書き出しは Git のリポジトリではないので `--skip-git-repo-check` を付ける
-- `--deny-read-list` で、一覧の場所を Codex に読ませない（全体は読み取りだけ、一覧の場所は deny の権限のプロファイルを渡す）。外して呼ばない
+- `--deny-read-list` で、一覧の場所を Codex に読ませない（全体は読み取りだけ、一覧の場所は deny の権限のプロファイルを渡す）。外して呼ばない。
+  一覧は `codex-deny-list.sh` が OS で選ぶので、一覧のファイルを自分で選び直さない（何も出なければ codex-run.sh が止まる）
 - `--keep-session` は 6 の再レビュー（同じ会話の続き）のため。標準出力の `thread_id` と `使用量` を控える
 - 標準出力に「知らせ: n 件」が出たら（新しいモデル・廃止の予定など）、標準エラーの本文を利用者に伝え、`config/codex-models.json` を比べて直すかを聞く。
   そのセッションで決まらなければ、今のリポジトリの `TODO.md` の「確認待ち」に【判断】で 1 行書く（書式は handoff スキルの 1）
@@ -177,7 +178,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/fill-prompt.sh" "${CLAUDE_PLUGIN_ROOT}/skill
 5. 2 と同じくバックグラウンドで、`thread_id` を続ける：
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review --resume "<thread_id>" -s read-only -f "$W/followup-brief.md" -o "$W/review-2.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events-2.jsonl" --deny-read-list "${CLAUDE_PLUGIN_ROOT}/config/codex-review-deny-read.txt"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-run.sh" --use review --resume "<thread_id>" -s read-only -f "$W/followup-brief.md" -o "$W/review-2.md" -C "$TREE" --skip-git-repo-check --keep-session --events "$W/events-2.jsonl" --deny-read-list "$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex-deny-list.sh")"
 ```
 
 6. 新しい指摘があれば 3〜5 をくり返し、台帳に「## 再レビュー（YYYY-MM-DD）」の節を足す。採用した指摘の「解消／未解消」もそこに書く

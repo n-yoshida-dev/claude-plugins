@@ -30,6 +30,22 @@ check() {
   fi
 }
 
+# Windows の Git Bash（uname -s が MINGW*・MSYS*）か。codex-run.sh と同じ見分け方
+is_win() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+# codex-run.sh が Codex に渡す読ませない場所の形。Windows では C:/…（cygpath -m -l）、Linux では渡した場所そのまま
+wf() {
+  if is_win; then
+    cygpath -m -l -- "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 # 偽の codex を作る。引数を 1 行 1 つで args に、標準入力を stdin に、作業フォルダを cwd に残し、本物に似た出来事（JSONL）を出す
 FAKE="$T/fake"
 mkdir -p "$FAKE"
@@ -391,7 +407,7 @@ run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --de
 check "読ませない場所の一覧を渡せる" status_is 0
 check "権限のプロファイルを既定にする" has_seq -c 'default_permissions="codex_run_read_limited"'
 check "全体は読み取りだけ、一覧の場所は deny の表を渡す（~ と {uid} を置き換え、コメントと空行は読まない）" \
-  has_seq -c "permissions.codex_run_read_limited.filesystem={\":root\"=\"read\",\"$HOME/secret-a\"=\"deny\",\"/var/tmp/deny-$UID_NOW\"=\"deny\"}"
+  has_seq -c "permissions.codex_run_read_limited.filesystem={\":root\"=\"read\",\"$(wf "$HOME/secret-a")\"=\"deny\",\"$(wf "/var/tmp/deny-$UID_NOW")\"=\"deny\"}"
 check "読ませない場所の件数を標準エラーに出す" stderr_has "読ませない場所 2 件"
 # -s を付けると権限のプロファイルが捨てられる（2026-10-06 に実機で確かめた）ので、サンドボックスは -c で渡す
 check "読ませない場所を渡すときは -s を付けない" lacks -s
@@ -442,18 +458,18 @@ cat > "$T/deny-glob.txt" <<'EOS'
 EOS
 HOME="$FH" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-glob.txt"
 check "* と ! の一覧を渡せる" status_is 0
-check "* は . で始まるものも含めて広げる" grep -qF -- "\"$FH/.b\"=\"deny\"" "$FAKE/args"
-check "* で広げたフォルダを読ませない" grep -qF -- "\"$FH/a\"=\"deny\"" "$FAKE/args"
-check "! で除外したものは読ませない場所に入れない" args_lack "\"$FH/keep\"=\"deny\""
-check "外を指すリンクは行き先を読ませない" grep -qF -- "\"$T/elsewhere\"=\"deny\"" "$FAKE/args"
+check "* は . で始まるものも含めて広げる" grep -qF -- "\"$(wf "$FH/.b")\"=\"deny\"" "$FAKE/args"
+check "* で広げたフォルダを読ませない" grep -qF -- "\"$(wf "$FH/a")\"=\"deny\"" "$FAKE/args"
+check "! で除外したものは読ませない場所に入れない" args_lack "\"$(wf "$FH/keep")\"=\"deny\""
+check "外を指すリンクは行き先を読ませない" grep -qF -- "\"$(wf "$T/elsewhere")\"=\"deny\"" "$FAKE/args"
 check "リンクそのものの名前では書かない" args_lack "link-outside"
-check "ほかの読ませない場所の中に重なるものは省く" args_lack "\"$FH/a/inner\"=\"deny\""
+check "ほかの読ませない場所の中に重なるものは省く" args_lack "\"$(wf "$FH/a/inner")\"=\"deny\""
 
 # 空白を含むパスの * は、空白で割らずに広げる
 mkdir -p "$T/sp ace/x" "$T/sp ace/y"
 printf '%s\n' "$T/sp ace/*" > "$T/deny-space.txt"
 run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-space.txt"
-check "空白を含むパスの * を割らずに広げる" grep -qF -- "\"$T/sp ace/x\"=\"deny\",\"$T/sp ace/y\"=\"deny\"" "$FAKE/args"
+check "空白を含むパスの * を割らずに広げる" grep -qF -- "\"$(wf "$T/sp ace/x")\"=\"deny\",\"$(wf "$T/sp ace/y")\"=\"deny\"" "$FAKE/args"
 
 # * で広げた名前に引用符があれば、TOML を壊すので止める
 mkdir -p "$T/fakehome-q/a\"b"
@@ -476,14 +492,94 @@ FH3="$T/fakehome3"
 mkdir -p "$FH3/workspace" "$FH3/.ssh" "$FH3/.vscode-server/extensions" "$FH3/.vscode-server/data" "$FH3/.vscode-server/bin"
 HOME="$FH3" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C / --deny-read-list "$SCRIPT_DIR/../config/codex-review-deny-read.txt"
 check "本物の読ませない場所の一覧を読める" status_is 0
-check "本物の一覧で ~/workspace を読ませない" grep -qF -- "\"$FH3/workspace\"=\"deny\"" "$FAKE/args"
-check "本物の一覧で ~/.ssh を読ませない" grep -qF -- "\"$FH3/.ssh\"=\"deny\"" "$FAKE/args"
-check "本物の一覧で Claude の作業用フォルダを読ませない" grep -qF -- "\"/tmp/claude-$UID_NOW\"=\"deny\"" "$FAKE/args"
-check "本物の一覧で Windows のドライブ（/mnt）を読ませない" grep -qF -- "\"/mnt\"=\"deny\"" "$FAKE/args"
-check "本物の一覧で .vscode-server そのものは丸ごとは塞がない" args_lack "\"$FH3/.vscode-server\"=\"deny\""
-check "本物の一覧で codex の実行ファイルのある .vscode-server/extensions は読める" args_lack "\"$FH3/.vscode-server/extensions\"=\"deny\""
-check "本物の一覧で編集の履歴のある .vscode-server/data は読ませない" grep -qF -- "\"$FH3/.vscode-server/data\"=\"deny\"" "$FAKE/args"
-check "本物の一覧で .vscode-server/bin は読ませない" grep -qF -- "\"$FH3/.vscode-server/bin\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で ~/workspace を読ませない" grep -qF -- "\"$(wf "$FH3/workspace")\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で ~/.ssh を読ませない" grep -qF -- "\"$(wf "$FH3/.ssh")\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で Claude の作業用フォルダを読ませない" grep -qF -- "\"$(wf "/tmp/claude-$UID_NOW")\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で Windows のドライブ（/mnt）を読ませない" grep -qF -- "\"$(wf /mnt)\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で .vscode-server そのものは丸ごとは塞がない" args_lack "\"$(wf "$FH3/.vscode-server")\"=\"deny\""
+check "本物の一覧で codex の実行ファイルのある .vscode-server/extensions は読める" args_lack "\"$(wf "$FH3/.vscode-server/extensions")\"=\"deny\""
+check "本物の一覧で編集の履歴のある .vscode-server/data は読ませない" grep -qF -- "\"$(wf "$FH3/.vscode-server/data")\"=\"deny\"" "$FAKE/args"
+check "本物の一覧で .vscode-server/bin は読ませない" grep -qF -- "\"$(wf "$FH3/.vscode-server/bin")\"=\"deny\"" "$FAKE/args"
+
+# Windows 版の一覧（config/codex-review-deny-read.windows.txt）も、この PC と同じ作りの偽のホームで確かめる。
+# 中身の組み立ては OS によらないので、Linux でも流す（Codex に渡す形だけが OS で違う）。
+# 作業フォルダは、Windows の Git Bash の /tmp と同じ ~/AppData/Local/Temp の中に作る
+FHW="$T/fakehome-win"
+mkdir -p "$FHW/workspace" "$FHW/.ssh" "$FHW/Documents" "$FHW/AppData/Roaming" "$FHW/AppData/LocalLow" \
+  "$FHW/AppData/Local/Packages" "$FHW/AppData/Local/Temp/claude" "$FHW/AppData/Local/Temp/codex-review.test"
+: > "$FHW/NTUSER.DAT"; : > "$FHW/ntuser.dat.LOG1"; : > "$FHW/ntuser.dat.LOG2"; : > "$FHW/ntuser.ini"
+HOME="$FHW" run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$FHW/AppData/Local/Temp/codex-review.test" \
+  --deny-read-list "$SCRIPT_DIR/../config/codex-review-deny-read.windows.txt"
+check "Windows 版の一覧を読める（作業フォルダの Temp の中は読ませない場所に入らない）" status_is 0
+check "Windows 版の一覧で ~/workspace を読ませない" grep -qF -- "\"$(wf "$FHW/workspace")\"=\"deny\"" "$FAKE/args"
+check "Windows 版の一覧で ~/.ssh を読ませない" grep -qF -- "\"$(wf "$FHW/.ssh")\"=\"deny\"" "$FAKE/args"
+check "Windows 版の一覧で ~/Documents を読ませない" grep -qF -- "\"$(wf "$FHW/Documents")\"=\"deny\"" "$FAKE/args"
+check "Windows 版の一覧で AppData/Roaming を読ませない" grep -qF -- "\"$(wf "$FHW/AppData/Roaming")\"=\"deny\"" "$FAKE/args"
+check "Windows 版の一覧で AppData/Local/Packages を読ませない" grep -qF -- "\"$(wf "$FHW/AppData/Local/Packages")\"=\"deny\"" "$FAKE/args"
+check "Windows 版の一覧で Claude の作業用フォルダ（Temp/claude）を読ませない" grep -qF -- "\"$(wf "$FHW/AppData/Local/Temp/claude")\"=\"deny\"" "$FAKE/args"
+check "Windows 版の一覧で AppData そのものは丸ごとは塞がない" args_lack "\"$(wf "$FHW/AppData")\"=\"deny\""
+check "Windows 版の一覧で AppData/LocalLow を読ませない" grep -qF -- "\"$(wf "$FHW/AppData/LocalLow")\"=\"deny\"" "$FAKE/args"
+check "Windows 版の一覧で AppData/Local そのものは丸ごとは塞がない" args_lack "\"$(wf "$FHW/AppData/Local")\"=\"deny\""
+check "Windows 版の一覧で Temp（Git Bash の /tmp。作業フォルダの置き場）は読める" args_lack "\"$(wf "$FHW/AppData/Local/Temp")\"=\"deny\""
+check "Windows 版の一覧で、作業フォルダは読ませない場所に入らない" args_lack "codex-review.test"
+# Windows が開いたままのレジストリのファイルを渡すと、mxc が共有違反で起動しないので外す（ほかのファイルは読ませない）
+check "Windows 版の一覧で、使用中のレジストリのファイル（NTUSER.DAT・LOG1・LOG2）は渡さない" \
+  test -z "$(grep -oiE 'ntuser\.dat(\.LOG[12])?"="deny"' "$FAKE/args")"
+check "Windows 版の一覧で、ほかの直下のファイル（ntuser.ini）は読ませない" grep -qF -- "\"$(wf "$FHW/ntuser.ini")\"=\"deny\"" "$FAKE/args"
+
+echo "--- codex-run.sh：一覧の選び方と、OS ごとの違い ---"
+
+# 一覧は codex-deny-list.sh が OS で選ぶ（Claude への指示の文の中で OS を見分けさせない）
+if is_win; then
+  check "Windows では Windows 版の一覧を選ぶ" test "$(bash "$SCRIPT_DIR/codex-deny-list.sh")" = "$(cd "$SCRIPT_DIR/../config" && pwd)/codex-review-deny-read.windows.txt"
+else
+  check "Linux では WSL・Linux 版の一覧を選ぶ" test "$(bash "$SCRIPT_DIR/codex-deny-list.sh")" = "$(cd "$SCRIPT_DIR/../config" && pwd)/codex-review-deny-read.txt"
+fi
+
+# 一覧の値が空なら止める（一覧を選ぶスクリプトが何も出さなかったときに、一覧なしで呼ばないため）
+run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list ""
+check "--deny-read-list の値が空なら終了コード 2" status_is 2
+check "--deny-read-list の値が空なら codex を呼ばない" not_called
+
+if is_win; then
+  # Windows：Codex に渡す読ませない場所は C:/… の形だけにし、囲いの種類 mxc を渡す（2026-11-18）
+  run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work"
+  check "Windows では囲いの種類 mxc を渡す" has_seq -c 'windows.sandbox="mxc"'
+  check "Windows でも -s で読み取りだけにする" has_seq -s read-only
+  run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny.txt"
+  check "Windows では読ませない場所を渡すときも mxc を渡す" has_seq -c 'windows.sandbox="mxc"'
+  check "Windows では読ませない場所を C:/… の形で渡す" grep -qF -- "\"$(cygpath -m -- "$HOME")/secret-a\"=\"deny\"" "$FAKE/args"
+  check "Windows では読ませない場所に /c/… や /tmp/… の形を残さない" args_lack "\"/"
+  check "Windows では elevated を渡さない" args_lack "elevated"
+  run --use review --resume fake-thread-1 -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny.txt"
+  check "Windows では resume でも mxc を渡す" has_seq -c 'windows.sandbox="mxc"'
+
+  # 一覧に C:\… と C:/… の形で書いても受け、C:/… の形で渡す
+  mkdir -p "$T/win-a" "$T/win-b"
+  { cygpath -w -- "$T/win-a"; cygpath -m -- "$T/win-b"; } > "$T/deny-winform.txt"
+  run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny-winform.txt"
+  check "Windows では一覧に C:\\… と C:/… の形で書ける" status_is 0
+  check "Windows では C:\\… の形で書いた場所も C:/… の形で渡す" grep -qF -- "\"$(cygpath -m -l -- "$T/win-a")\"=\"deny\"" "$FAKE/args"
+  check "Windows では C:/… の形で書いた場所もそのまま渡す" grep -qF -- "\"$(cygpath -m -l -- "$T/win-b")\"=\"deny\"" "$FAKE/args"
+
+  # 作業フォルダを /c/…/Temp/… の形、一覧を /tmp/… の形で書いても、同じ場所として比べて止める
+  # （Git Bash の /tmp は ~/AppData/Local/Temp の別名。形が違うまま比べると、作業フォルダが読ませない場所の中でも通ってしまう）
+  wt="$(cygpath -m -- "$T")"
+  c_form="/$(printf '%s' "${wt:0:1}" | tr '[:upper:]' '[:lower:]')/${wt:3}"
+  printf '%s\n' "$T" > "$T/deny-tmpform.txt"
+  run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$c_form/work" --deny-read-list "$T/deny-tmpform.txt"
+  check "Windows では /c/… と /tmp/… の形が違っても、作業フォルダが読ませない場所の中なら終了コード 2" status_is 2
+  check "Windows では形が違っても、作業フォルダが読ませない場所の中なら codex を呼ばない" not_called
+else
+  # Linux（WSL）：引数は前と同じ（囲いの種類を足さず、読ませない場所は / で始まる形のまま）
+  run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work"
+  check "Linux では囲いの種類（windows.sandbox）を渡さない" args_lack "windows.sandbox"
+  run --use review -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny.txt"
+  check "Linux では読ませない場所を渡すときも windows.sandbox を渡さない" args_lack "windows.sandbox"
+  check "Linux では読ませない場所を / で始まる形のまま渡す" grep -qF -- "\"$HOME/secret-a\"=\"deny\"" "$FAKE/args"
+  run --use review --resume fake-thread-1 -s read-only -f "$T/prompt.md" -o "$T/out.md" -C "$T/work" --deny-read-list "$T/deny.txt"
+  check "Linux では resume でも windows.sandbox を渡さない" args_lack "windows.sandbox"
+fi
 
 echo "--- codex-run.sh：前回の続きを聞く ---"
 

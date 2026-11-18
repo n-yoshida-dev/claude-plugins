@@ -1,0 +1,33 @@
+# codex-review・compete で、Codex に読ませない場所の一覧の Windows 版（Windows の Git Bash で動くときに使う）
+#
+# どちらの一覧を使うかは scripts/codex-deny-list.sh が OS で選ぶ。WSL・Linux 版は codex-review-deny-read.txt
+# 考え方は WSL 版と同じ：ホームの下を広く塞ぎ、Codex の作業フォルダ（書き出し）を置く場所だけ読めるようにする。
+#   - Windows の Codex の囲い（mxc）も、ここに書いた場所を OS が「アクセスが拒否されました」で止める
+#     （2026-11-18 に codex sandbox で確かめた。ops の docs/環境/2026-11-16-Claude環境の再構築/段階5a-Codexの囲い-結果.md）
+#   - codex-run.sh が、Codex に渡す直前に C:/… の形へ直す。ここでは WSL 版と同じく ~ と / 始まりで書ける（C:/… や C:\… でもよい）
+# 書き方：1 行に 1 つ、絶対パス。~ はホーム、* はその場所にあるものすべて（. で始まるものも）、先頭の ! は除外。# から後ろと空行は読まない
+# 注意：
+#   - 読めなくした場所の中にあるものは、その下に「読める」を足しても読めない（親の deny が勝つ）。
+#     Windows の Git Bash では /tmp がホームの下（~/AppData/Local/Temp）にあり、Codex の作業フォルダ（/tmp/codex-review.… や
+#     /tmp/compete.…）もそこに作るので、AppData → Local → Temp の順に中を分けて、Temp だけ読めるようにする
+#   - codex の実行ファイル（Microsoft Store 版の Codex アプリ。C:/Program Files/WindowsApps の中）はホームの外にあるので、除外は要らない
+#   - WSL 版の /mnt（Windows のドライブ）に当たる物は書かない。Windows では本人の書類・ブラウザのデータはホームの下にあり、~/* で塞がる
+#     （このマシンのドライブは C: だけ。2026-11-18 に確かめた）
+
+# ホームの直下は、すべて読ませない
+# （リポジトリ・雑務・自分に関するデータ・会話の記録・鍵・各種ツールの設定やトークン・書類・ブラウザのデータ）
+~/*
+# ただし、Windows が使っている間は開けない（ほかから読めない）レジストリのファイルは書かない。
+# 書くと Codex の囲い（mxc）が「CreateProcessSecurityEnvironment failed (HRESULT = 0x80070020)」（共有違反）で起動せず、
+# 何も動かせなくなる（2026-11-18 に codex sandbox で 1 件ずつ確かめ、この 3 つだけが止めた）
+!~/NTUSER.DAT
+!~/ntuser.dat.LOG1
+!~/ntuser.dat.LOG2
+# ただし AppData は丸ごとは塞がず、中を分けて、Codex の作業フォルダを作る Temp（Git Bash の /tmp）だけ読めるようにする
+!~/AppData
+~/AppData/*
+!~/AppData/Local
+~/AppData/Local/*
+!~/AppData/Local/Temp
+# Claude の作業用フォルダ（ほかのセッションのものも含む。WSL 版の /tmp/claude-{uid} に当たる）
+~/AppData/Local/Temp/claude

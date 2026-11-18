@@ -28,7 +28,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_DENY="$SCRIPT_DIR/../config/codex-review-deny-read.txt"
+# 共通の「読ませない場所」の一覧は、OS に合う物を codex-deny-list.sh が選ぶ（Windows は codex-review-deny-read.windows.txt）。
+# 選べなければ空になり、下の確かめで止まる
+BASE_DENY="$(bash "$SCRIPT_DIR/codex-deny-list.sh")"
 
 # 指定の誤りを標準エラーに出して終了する
 usage_error() {

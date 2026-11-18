@@ -83,7 +83,14 @@ check "作り手のフォルダに空の out/ を作る" test -d "$RUN/makers/$t
 check "Codex の一覧に、ほかの作り手のフォルダを足す" file_has "$COORD/deny-read-codex.txt" "$RUN/makers/$tag_opus"
 check "Codex の一覧に、自分のフォルダは入れない" file_lacks "$COORD/deny-read-codex.txt" "$RUN/makers/$tag_codex"
 check "Codex の一覧に、反論の置き場を足す" grep -qxF "$RUN/rebuttal" "$COORD/deny-read-codex.txt"
-check "Codex の一覧は共通の一覧を含む" file_has "$COORD/deny-read-codex.txt" "/tmp/claude-{uid}"
+# 共通の一覧は codex-deny-list.sh が OS で選ぶ（Windows は Windows 版。Claude の作業用フォルダの書き方が違う）
+base_deny_line="/tmp/claude-{uid}"
+if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
+  # 一覧に書かれた「~」の文字そのものを探すので、わざと引用符で書く
+  # shellcheck disable=SC2088
+  base_deny_line='~/AppData/Local/Temp/claude'
+fi
+check "Codex の一覧は共通の一覧を含む" file_has "$COORD/deny-read-codex.txt" "$base_deny_line"
 check "審査役の一覧に、作り手のフォルダ全体を足す" grep -qxF "$RUN/makers" "$COORD/deny-read-judge.txt"
 check "審査役の一覧に、ほかの審査役の判定の置き場を足す" grep -qxF "$RUN/judges" "$COORD/deny-read-judge.txt"
 coord_abs="$(realpath -m "$COORD")"
