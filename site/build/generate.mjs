@@ -289,9 +289,16 @@ function collectPlugin(dir) {
   }
 }
 
+/**
+ * git に渡す場所・git の出力と比べる場所を / 区切りにする。
+ * Windows の path.relative は \ 区切りを返し、git show <版>:<場所> は \ を読めず版が全部空になる（2026-11-18）。
+ * path.sep が / の Linux では、/ で切って / でつなぐだけなので何も変わらない
+ */
+const toGitPath = (p) => p.split(path.sep).join('/')
+
 /** 版の履歴：plugin.json を変えたコミットごとに、版・日付・件名・増えた/直した/外した部品のファイル */
 function history(pluginDir) {
-  const manifestRel = path.relative(ROOT, path.join(pluginDir, '.claude-plugin', 'plugin.json'))
+  const manifestRel = toGitPath(path.relative(ROOT, path.join(pluginDir, '.claude-plugin', 'plugin.json')))
   let log
   try {
     log = execFileSync('git', ['log', '--format=%H%x09%ad%x09%s', '--date=short', '--', manifestRel], { cwd: ROOT, encoding: 'utf8' })
@@ -302,7 +309,7 @@ function history(pluginDir) {
     const [hash, date, subject] = l.split('\t')
     return { hash, date, subject }
   })
-  const rel = path.relative(ROOT, pluginDir)
+  const rel = toGitPath(path.relative(ROOT, pluginDir)) // git diff に渡し、git の出力（/ 区切り）の頭を外すのに使う
   return commits.map((c, i) => {
     let version = null
     try {
