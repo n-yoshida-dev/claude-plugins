@@ -36,7 +36,7 @@ Claude Code プラグインのマーケットプレイス。
 }
 ```
 
-**マシン（WSL ディストリ）ごとに初回だけ**、プラグイン本体を取得する必要がある
+**PC ごとに初回だけ**、プラグイン本体を取得する必要がある
 （外部ソースのプラグインは自動では落ちてこない）。**Claude Code のセッション内**で実行する。
 
 ```
@@ -46,12 +46,12 @@ Claude Code プラグインのマーケットプレイス。
 
 引数なしで `/plugin` を打つと対話メニューが開くので、そこから追加・導入してもよい。
 
-**シェルの `claude` コマンドは PATH に無い前提で書くこと。** VSCode 拡張などは自前の実行環境を持っていて
+**シェルの `claude` コマンドは PATH に無い前提で書くこと。** Claude デスクトップ版などは自前の実行環境を持っていて
 `claude plugin install` は `command not found` になる。セッション内の `/plugin` から行うか、
-拡張同梱のバイナリをフルパスで叩く（Claude 自身に代行させるときはこちら）。
+デスクトップ版同梱の `claude.exe` をフルパスで叩く（Claude 自身に代行させるときはこちら。更新で版のフォルダが変わるので、いちばん新しい版を探す）。
 
 ```bash
-CLI=$(ls -d ~/.vscode-server/extensions/anthropic.claude-code-*/resources/native-binary/claude | sort -V | tail -1)
+CLI=$(ls -d ~/AppData/Local/Claude-Data/claude_*/claude-code/*/*/claude.exe | sort -V | tail -1)
 "$CLI" plugin install apps-workflow@n-yoshida-dev --scope project   # 利用側アプリのディレクトリで実行
 ```
 
@@ -87,7 +87,7 @@ node site/build/usage.mjs              # 使用回数を数えて site/usage.js 
 ```
 
 使用回数は、本人のセッション記録（`~/.claude/projects/`）から `site/build/usage.mjs` が数える。切り口（ops の棚卸しの文書 3 節・11 節）は手書きの `site/build/usage.json`。
-記録は 30 日で消えるので、セッションごと・日ごとの回数を `~/.local/share/claude-plugins/usage-store.json` に積む。systemd のタイマー `claude-plugins-usage.timer` が週 1 回、`generate.mjs --local` と一緒に動かす。
+記録は 30 日で消えるので、セッションごと・日ごとの回数を `~/.local/share/claude-plugins/usage-store.json` に積む。デスクトップ版の定期タスク `apps-plugins-usage-weekly`（毎週月曜 9 時）が週 1 回、`generate.mjs --local` と一緒に動かす（2026-11-19 までは WSL の systemd のタイマー）。
 
 各図は「SVG を書き出す」「PNG を書き出す」で画像にでき、記事に貼れる。
 

@@ -10,8 +10,8 @@
 - `site/` — 仕組みの図（GitHub Pages）。部品に関わる中身は `site/build/generate.mjs` が部品のファイルから作り、app.js に直書きしない。
   手書きは `site/build/flow.json`（作業の流れ）と、置き場所の図の段の名前・効く範囲（Claude Code の仕様）だけ。
   **部品を消す・改名するときは `flow.json` も直す**（指した部品が無いと CI の生成が止まる）。図の文章は増やさない（本人「文章量は少なくして」）。
-  使用状況（図 5）は `site/build/usage.mjs` が本人のセッション記録から数える（手元だけ。週 1 回 systemd のタイマー）。切り口は手書きの `site/build/usage.json`、数え方を変えたら `test-usage.mjs` も直す（usage.mjs か usage.json を変えると、次の実行で残っている記録を全部数え直す）。
-  タイマーが動いたかは `systemctl --user status claude-plugins-usage.service` で見る（`journalctl --user -u claude-plugins-usage` はログの回転で空になることがある。2026-10-20 に 10-19 の実行を確かめたとき空だった。本人「足してOK」）
+  使用状況（図 5）は `site/build/usage.mjs` が本人のセッション記録から数える（手元だけ。週 1 回、デスクトップ版の定期タスク `apps-plugins-usage-weekly`。2026-11-19 までは WSL の systemd のタイマー）。切り口は手書きの `site/build/usage.json`、数え方を変えたら `test-usage.mjs` も直す（usage.mjs か usage.json を変えると、次の実行で残っている記録を全部数え直す）。
+  定期タスクが動いたかは、デスクトップ版のサイドバーの「Scheduled」でそのタスクの実行の一覧を見る（定義は `~/.claude/scheduled-tasks/apps-plugins-usage-weekly/SKILL.md`。Git は claude-home）
 - `logs/decisions.md` — 本人と合意した判断の台帳
 
 ## 守ること
@@ -19,7 +19,7 @@
 - **スキルを新しく作るとき、スキルやエージェントの説明文（description）を直すときは、`skill-creator` スキルを呼ぶ。**
   Claude が自分でスキルを使うかどうかは、説明文と「使う場面」の書き方で決まるため
   （2026-10-11 の棚卸しで、使う場面がどこにも書かれていない部品は、場面が来ても使われていなかった。それまでスキル 6 本を書いて skill-creator は 0 回。
-  本人の OK は ops の `docs/2026-10-11-apps-開発環境の棚卸し.md` の 5 つ目の質問）
+  本人の OK は ops の `docs/apps/2026-10-11-apps-開発環境の棚卸し.md` の 5 つ目の質問）
 - **フックの検査ロジックはシェルスクリプトに置き、`hooks.json` は登録だけにする。** スクリプト単体で
   `echo '<json>' | bash hooks/xxx.sh` と叩いて検証できる状態を保つ
 - **フックはプロジェクトに無いものを黙ってスキップする。** `frontend/` `backend/` `TODO.md` が無いリポジトリで
@@ -33,7 +33,7 @@
   （依存が無いと apps-workflow ごと「failed to load」になる。2026-10-20 に試しの設定フォルダで確認）。依存を足した・変えた版を配るときは、
   各アプリの `.claude/settings.json` に先に依存の行を PR で入れ、そのあと update に続けて `claude plugin install <依存> --scope <同じ範囲>` を実行し、
   `claude plugin list` で両方が enabled になったことを見る（install に任せると、作業フォルダの settings.json に未コミットの 1 行が足され、次の `git pull` が止まる）
-  `claude` は PATH に無いので、VS Code 拡張の中の `~/.vscode-server/extensions/anthropic.claude-code-<版>-linux-x64/resources/native-binary/claude` をフルパスで呼ぶ
+  `claude` は PATH に無いので、デスクトップ版の中の `claude.exe` をフルパスで呼ぶ（`ls -d ~/AppData/Local/Claude-Data/claude_*/claude-code/*/*/claude.exe | sort -V | tail -1`。デスクトップ版の更新で版のフォルダが変わるので、いちばん新しい版を探す）
   （2026-10-06 に、全アプリが 1.5.6（portfolio だけ 1.9.0）のまま止まっていて、compete（1.10.0）はどのアプリにも、codex-run.sh（1.6.0〜）は portfolio 以外に届いていなかったと判明。本人の承認「昇格してOKですよ」）
 - 変更したら `claude plugin validate . --strict` と `claude plugin validate plugins/<name> --strict` を通す
 - シェルスクリプトを変えたら `bash -n` と shellcheck も通す。shellcheck はこのマシンに入っていないが、
