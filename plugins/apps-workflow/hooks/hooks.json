@@ -36,7 +36,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-briefing.sh\"",
-            "timeout": 10
+            "timeout": 20
           }
         ]
       }

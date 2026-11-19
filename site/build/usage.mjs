@@ -2,7 +2,7 @@
 //
 // 使い方： node site/build/usage.mjs [--out site/usage.js] [--store <積む場所>] [--projects <セッション記録の置き場>] [--apps-root <apps のフォルダ>] [--full]
 //   --full  積んだ値を使い回さず、残っている記録を全部読み直す（記録が消えたセッションの値は、それでも残す）
-// 呼び元： systemd のタイマー（~/.config/systemd/user/claude-plugins-usage.timer、週 1 回）、手元で図を見るとき
+// 呼び元： デスクトップ版の定期タスク（~/.claude/scheduled-tasks/apps-plugins-usage-weekly、週 1 回。2026-11-19 までは WSL の systemd のタイマー）、手元で図を見るとき
 //
 // 読むもの：
 //   ${CLAUDE_CONFIG_DIR:-~/.claude}/projects/ の apps のフォルダのセッション記録（*.jsonl と */subagents/*.jsonl。既定 30 日で消える）
