@@ -45,7 +45,8 @@ description: 画面の見た目を決める・点検する手順。「A 方向�
 
 1. **`DESIGN.md` の下書きを作る。** ひな形は app-template の `DESIGN.md`（手元の `~/workspace/apps/app-template/DESIGN.md`。無ければ `gh api repos/n-yoshida-dev/app-template/contents/DESIGN.md --jq .content | base64 -d`）。
    書き方の見本は photo-prompt-builder の `DESIGN.md`。今ある CSS・`SPEC.md`・`logs/decisions.md` から埋め、決まっていないところは「未定（A で選ぶ）」と空ける。
-   ユーザーの言葉は引用で、Claude が足した言葉は「Claude の言葉」と分けて書く。`lint` でエラー 0 にする
+   ユーザーの言葉は引用で、Claude が足した言葉は「Claude の言葉」と分けて書く。`lint` でエラー 0 にする。
+   **角の丸さと「AI が作ったように見える形」は `references/corners-and-ai-look.md` を読んでから決める**（角は物の大きさの順の段にし、全部を同じ角にしない。ボタンの角は見本を並べて本人に選んでもらう）
 2. **何が気になっているかを先に聞くか、見本を見せて選んでもらう。** 言葉で方向を聞かれても答えにくい（photo-prompt-builder の SPEC.md「スタイルの見本画像」の項、本人「文字だけじゃわからん。「こんな感じになるよ」って参考画像を貼ってほしい。」）
 3. **大事な画面（トップ・公開して最初に見られる画面）なら、Claude だけで見本を作る前に `/apps-workflow:compete`（画面案）を 1 行で提案する**
    （例「「コンペ」か「不要」とだけ返してください」）。ユーザーが別の案・見本・もっと良い形を求めたときも同じ。OK なら compete に進み、「不要」ならこのまま続ける。
